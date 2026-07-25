@@ -8,7 +8,7 @@ Working through a phase plan (see `README.md` "Phase plan"). Phases 0–3 are do
 
 ## State
 
-Everything below is committed and pushed to `main`; latest commit is `ca20f3a` (plus an uncommitted Aura Brain rename staged for the next commit — see Next Steps). Habits/Journal/Finance/Tasks builds themselves (commits `ab98013` through `644c9ce`) are unchanged from prior sessions — see history for the full feature list per module. **This whole session was production stabilization, not new features**, working through a chain of issues the user reported live in production one at a time:
+Everything below is committed and pushed to `main`; latest commit is `3fab354`. Habits/Journal/Finance/Tasks builds themselves (commits `ab98013` through `644c9ce`) are unchanged from prior sessions — see history for the full feature list per module. **This whole session was production stabilization, not new features**, working through a chain of issues the user reported live in production one at a time:
 
 1. **`228cb2a`** — Hardened every page-load AI call (Tasks/Journal/Finance) to fail soft on a try/catch instead of crashing the whole page on a transient AI-provider failure. Real hardening, but turned out not to be the actual crash the user hit.
 2. **`883ebaf`** — Home's "Smart Timeline" card was fully mocked; made it real (buckets today's actual tasks against the live clock) and added a ticking Brisbane clock + fixed the "today" boundary to use Brisbane time instead of the server's UTC clock.
@@ -16,7 +16,7 @@ Everything below is committed and pushed to `main`; latest commit is `ca20f3a` (
 4. **Production AI was turned off, then back on.** User first chose to remove `ANTHROPIC_API_KEY` from Vercel after noticing API charges (fails soft to no-narration everywhere, per "AI narrates, math computes" — computed numbers never depend on AI). Then reconsidered after seeing Aura Brain's "No AI provider available" message and asked to re-add it — she added the real key herself via `vercel env add` (I never have access to the actual key value, only ever saw it masked). Redeployed both times so the change took effect (`vercel deploy --prod` — env var changes don't apply retroactively). **Current state: production AI is ON, using the hosted Anthropic key.**
 5. **`d3f66aa`** — Added a "Change password" option to the account menu. This resolved an earlier ambiguous report ("all users get access password change option") — turned out to mean she wanted the feature added, not that it was a bug. New `changePasswordAction` (Supabase session-based `updateUser`, no re-entering the current password) + a dialog wired into `UserMenu`.
 6. **`ca20f3a`** — User asked to audit date/time correctness across "all modules." Root cause was systemic: the server (Vercel) runs UTC but the app is Brisbane-based (UTC+10), so every "today" computed via `new Date().toISOString().slice(0,10)` or local date components lagged Brisbane's actual calendar day by up to 10 hours (roughly Brisbane 00:00–10:00). Fixed in 24 files across Habits/Tasks/Journal/Finance — see Key Decisions for the two Brisbane helpers this all runs through now. **Deliberately deferred**: week/month-level boundaries (`startOfWeek`/`startOfMonth`) have the same theoretical issue but a much narrower (~once-a-month) risk window — not fixed this pass.
-7. **Uncommitted as of this handover**: renamed "AI Brain" → "Aura Brain" everywhere it's user-facing (nav item, page title, chat placeholder, system prompt, alert copy) per the user's request. The provider badge next to the title (shows "Claude"/"Ollama (...)"/"GPT-4o" — which model is actually active) was left as-is; only the feature's own name changed. Typecheck/lint/build all pass; not yet committed.
+7. **`3fab354`** — Renamed "AI Brain" → "Aura Brain" everywhere it's user-facing (nav item, page title, chat placeholder, system prompt, alert copy) per the user's request. The provider badge next to the title (shows "Claude"/"Ollama (...)"/"GPT-4o" — which model is actually active) was left as-is; only the feature's own name changed.
 
 ## Key decisions
 
@@ -29,10 +29,10 @@ Everything below is committed and pushed to `main`; latest commit is `ca20f3a` (
 
 ## Files touched
 
-Too many to list individually this session (see commits `228cb2a`, `883ebaf`, `5356180`, `d3f66aa`, `ca20f3a` — each has a detailed message). Worth knowing directly:
+Too many to list individually this session (see commits `228cb2a`, `883ebaf`, `5356180`, `d3f66aa`, `ca20f3a`, `8068ee9`, `3fab354` — each has a detailed message). Worth knowing directly:
 - `src/lib/date.ts` — the two Brisbane helpers everything else now depends on.
 - `src/components/app-shell/user-menu.tsx`, `src/components/app-shell/change-password-dialog.tsx` (new), `src/server/actions/auth.ts` — account menu crash fix + password-change feature.
-- Uncommitted: `src/lib/nav.ts`, `src/app/(app)/ai/page.tsx`, `src/components/ai/chat-panel.tsx`, `src/app/api/chat/route.ts`, `src/server/db-user.ts` (comment only) — Aura Brain rename.
+- `src/lib/nav.ts`, `src/app/(app)/ai/page.tsx`, `src/components/ai/chat-panel.tsx`, `src/app/api/chat/route.ts`, `src/server/db-user.ts` (comment only) — Aura Brain rename.
 
 ## Gotchas / constraints learned
 
@@ -47,12 +47,11 @@ Too many to list individually this session (see commits `228cb2a`, `883ebaf`, `5
 
 ## Next steps
 
-1. **Commit the Aura Brain rename** (see State #7) — it's finished and verified but sitting uncommitted as of this handover.
-2. **Confirm with the user that `/home` and `/tasks` are clean** and that the date/time fixes actually resolved what she saw — the timing-dependent nature of the bug (only visible ~00:00–10:00 Brisbane) makes it hard to verify outside that window.
-3. **Ask the user to verify Finance and Tasks end-to-end** (long carried-over) — neither has had full authenticated interactive testing.
-4. **Ask which life area is next**: Health, Learning, Family, or Travel. No signal yet.
-5. Consider a follow-up pass on week/month-level Brisbane-boundary correctness (see State #6's deferred scope) if it turns out to matter.
-6. Lower priority, long-carried-over: delete the duplicate empty `life-os` Vercel project; Supabase custom SMTP; clean up unconfirmed mailinator test accounts.
+1. **Confirm with the user that `/home` and `/tasks` are clean** and that the date/time fixes actually resolved what she saw — the timing-dependent nature of the bug (only visible ~00:00–10:00 Brisbane) makes it hard to verify outside that window.
+2. **Ask the user to verify Finance and Tasks end-to-end** (long carried-over) — neither has had full authenticated interactive testing.
+3. **Ask which life area is next**: Health, Learning, Family, or Travel. No signal yet.
+4. Consider a follow-up pass on week/month-level Brisbane-boundary correctness (see State #6's deferred scope) if it turns out to matter.
+5. Lower priority, long-carried-over: delete the duplicate empty `life-os` Vercel project; Supabase custom SMTP; clean up unconfirmed mailinator test accounts.
 
 ## Open questions
 
