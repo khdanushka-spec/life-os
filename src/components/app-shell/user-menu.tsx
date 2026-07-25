@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -30,12 +31,14 @@ export function UserMenu({ initialUser }: { initialUser: User | null }) {
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
-          {user?.email ?? "Not signed in"}
-        </DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+            {user?.email ?? "Not signed in"}
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <form action={signOutAction}>
-          <DropdownMenuItem variant="destructive" render={<button type="submit" />}>
+          <DropdownMenuItem variant="destructive" nativeButton render={<button type="submit" />}>
             <LogOut />
             Sign out
           </DropdownMenuItem>
