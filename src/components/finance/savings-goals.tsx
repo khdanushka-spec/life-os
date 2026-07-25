@@ -8,15 +8,22 @@ import { updateGoalProgressAction, deleteGoalAction } from "@/server/actions/fin
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, decToNumber } from "@/lib/finance";
+import { formatCurrency } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
-function GoalCard({ goal }: { goal: SavingsGoal }) {
+// Money fields converted to plain numbers server-side - see AccountView
+// in accounts-list.tsx for why.
+export type SavingsGoalView = Omit<SavingsGoal, "targetAmount" | "currentAmount"> & {
+  targetAmount: number;
+  currentAmount: number;
+};
+
+function GoalCard({ goal }: { goal: SavingsGoalView }) {
   const [isPending, startTransition] = useTransition();
-  const [amount, setAmount] = useState(decToNumber(goal.currentAmount).toString());
+  const [amount, setAmount] = useState(goal.currentAmount.toString());
   const router = useRouter();
-  const target = decToNumber(goal.targetAmount);
-  const current = decToNumber(goal.currentAmount);
+  const target = goal.targetAmount;
+  const current = goal.currentAmount;
   const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
 
   return (
@@ -82,7 +89,7 @@ function GoalCard({ goal }: { goal: SavingsGoal }) {
   );
 }
 
-export function SavingsGoals({ goals }: { goals: SavingsGoal[] }) {
+export function SavingsGoals({ goals }: { goals: SavingsGoalView[] }) {
   if (goals.length === 0) {
     return (
       <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">

@@ -65,10 +65,19 @@ export function formatCurrency(amount: number, currency = "AUD"): string {
 // app treats money as plain numbers everywhere above the DB layer (see
 // finance module plan: full decimal.js precision isn't warranted at
 // personal-finance magnitudes, and the storage layer is still exact
-// Decimal(14,2)).
-export function decToNumber(d: { toNumber(): number } | number | null | undefined): number {
+// Decimal(14,2)). ALWAYS call this server-side, before a Decimal-bearing
+// object is passed as a prop to a "use client" component - Decimal does
+// not survive that boundary as a real instance (it arrives without a
+// working .toNumber()), so this also accepts the string/plain-object
+// shapes it can turn into as a defensive fallback.
+export function decToNumber(
+  d: { toNumber(): number } | string | number | null | undefined,
+): number {
   if (d == null) return 0;
-  return typeof d === "number" ? d : d.toNumber();
+  if (typeof d === "number") return d;
+  if (typeof d === "string") return Number(d);
+  if (typeof d.toNumber === "function") return d.toNumber();
+  return Number(d);
 }
 
 export function computeNetWorth(input: {

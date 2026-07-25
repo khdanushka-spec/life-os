@@ -8,14 +8,23 @@ import { updateInvestmentValueAction, deleteInvestmentAction, deleteAssetLiabili
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, decToNumber, INVESTMENT_TYPE_LABELS } from "@/lib/finance";
+import { formatCurrency, INVESTMENT_TYPE_LABELS } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
-function InvestmentRow({ investment }: { investment: Investment }) {
+// Money fields converted to plain numbers server-side - see AccountView
+// in accounts-list.tsx for why.
+export type InvestmentView = Omit<Investment, "units" | "costBasis" | "currentValue"> & {
+  units: number | null;
+  costBasis: number;
+  currentValue: number;
+};
+export type AssetLiabilityView = Omit<AssetLiability, "value"> & { value: number };
+
+function InvestmentRow({ investment }: { investment: InvestmentView }) {
   const [isPending, startTransition] = useTransition();
-  const [value, setValue] = useState(decToNumber(investment.currentValue).toString());
+  const [value, setValue] = useState(investment.currentValue.toString());
   const router = useRouter();
-  const gain = decToNumber(investment.currentValue) - decToNumber(investment.costBasis);
+  const gain = investment.currentValue - investment.costBasis;
 
   return (
     <div className={cn("flex flex-col gap-2 rounded-xl border p-3.5", isPending && "opacity-60")}>
@@ -27,7 +36,7 @@ function InvestmentRow({ investment }: { investment: Investment }) {
           </Badge>
         </div>
         <div className="text-right">
-          <p className="text-sm font-semibold tabular-nums">{formatCurrency(decToNumber(investment.currentValue), investment.currency)}</p>
+          <p className="text-sm font-semibold tabular-nums">{formatCurrency(investment.currentValue, investment.currency)}</p>
           <p className={cn("text-[11px] tabular-nums", gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
             {gain >= 0 ? "+" : ""}
             {formatCurrency(gain, investment.currency)}
@@ -69,7 +78,7 @@ function InvestmentRow({ investment }: { investment: Investment }) {
   );
 }
 
-function AssetLiabilityRow({ item }: { item: AssetLiability }) {
+function AssetLiabilityRow({ item }: { item: AssetLiabilityView }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -81,7 +90,7 @@ function AssetLiabilityRow({ item }: { item: AssetLiability }) {
       </div>
       <p className={cn("text-sm font-semibold tabular-nums", item.kind === "LIABILITY" && "text-destructive")}>
         {item.kind === "LIABILITY" && "-"}
-        {formatCurrency(decToNumber(item.value))}
+        {formatCurrency(item.value)}
       </p>
       <Button
         variant="ghost"
@@ -104,8 +113,8 @@ export function InvestmentsList({
   investments,
   assetsLiabilities,
 }: {
-  investments: Investment[];
-  assetsLiabilities: AssetLiability[];
+  investments: InvestmentView[];
+  assetsLiabilities: AssetLiabilityView[];
 }) {
   return (
     <div className="flex flex-col gap-6">

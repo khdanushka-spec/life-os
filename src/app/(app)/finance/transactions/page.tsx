@@ -5,10 +5,11 @@ import { TransactionForm } from "@/components/finance/transaction-form";
 import { TransactionsList } from "@/components/finance/transactions-list";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { decToNumber } from "@/lib/finance";
 
 export default async function TransactionsPage() {
   const dbUser = await requireDbUser();
-  const [accounts, transactions] = await Promise.all([
+  const [accountRows, transactionRows] = await Promise.all([
     prisma.financialAccount.findMany({ where: { userId: dbUser.id, archived: false }, orderBy: { createdAt: "asc" } }),
     prisma.transaction.findMany({
       where: { userId: dbUser.id },
@@ -16,6 +17,12 @@ export default async function TransactionsPage() {
       take: 50,
     }),
   ]);
+  const accounts = accountRows.map((a) => ({
+    ...a,
+    balance: decToNumber(a.balance),
+    creditLimit: a.creditLimit != null ? decToNumber(a.creditLimit) : null,
+  }));
+  const transactions = transactionRows.map((t) => ({ ...t, amount: decToNumber(t.amount) }));
   const accountNames = Object.fromEntries(accounts.map((a) => [a.id, a.name]));
 
   return (

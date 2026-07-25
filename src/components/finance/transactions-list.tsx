@@ -7,16 +7,21 @@ import type { Transaction } from "@/generated/prisma/client";
 import { deleteTransactionAction } from "@/server/actions/finance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, decToNumber } from "@/lib/finance";
+import { formatCurrency } from "@/lib/finance";
 import { cn } from "@/lib/utils";
+
+// Money fields converted to plain numbers server-side - see AccountView
+// in accounts-list.tsx for why (Prisma Decimal doesn't survive the
+// server->client boundary as a real Decimal instance).
+export type TransactionView = Omit<Transaction, "amount"> & { amount: number };
 
 const TYPE_ICON = { INCOME: ArrowUpCircle, EXPENSE: ArrowDownCircle, TRANSFER: ArrowLeftRight };
 
-function TransactionRow({ txn, accountName }: { txn: Transaction; accountName: string }) {
+function TransactionRow({ txn, accountName }: { txn: TransactionView; accountName: string }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const Icon = TYPE_ICON[txn.type];
-  const amount = decToNumber(txn.amount);
+  const amount = txn.amount;
 
   return (
     <div className={cn("flex items-center gap-3 rounded-xl border p-3", isPending && "opacity-60")}>
@@ -63,7 +68,7 @@ export function TransactionsList({
   transactions,
   accountNames,
 }: {
-  transactions: Transaction[];
+  transactions: TransactionView[];
   accountNames: Record<string, string>;
 }) {
   if (transactions.length === 0) {

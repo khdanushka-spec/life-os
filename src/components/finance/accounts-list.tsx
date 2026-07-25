@@ -7,15 +7,24 @@ import type { FinancialAccount } from "@/generated/prisma/client";
 import { archiveAccountAction } from "@/server/actions/finance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ICONS, LIABILITY_ACCOUNT_TYPES, formatCurrency, decToNumber } from "@/lib/finance";
+import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ICONS, LIABILITY_ACCOUNT_TYPES, formatCurrency } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
-function AccountRow({ account }: { account: FinancialAccount }) {
+// Prisma's Decimal doesn't survive the server->client boundary as a real
+// Decimal instance (it arrives without a working .toNumber()), so money
+// fields are converted to plain numbers server-side before this
+// component ever sees them - see each finance page.tsx.
+export type AccountView = Omit<FinancialAccount, "balance" | "creditLimit"> & {
+  balance: number;
+  creditLimit: number | null;
+};
+
+function AccountRow({ account }: { account: AccountView }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const Icon = ACCOUNT_TYPE_ICONS[account.type];
   const isLiability = LIABILITY_ACCOUNT_TYPES.includes(account.type);
-  const balance = decToNumber(account.balance);
+  const balance = account.balance;
 
   return (
     <div className={cn("flex items-center gap-3 rounded-xl border p-3.5", isPending && "opacity-60")}>
@@ -33,9 +42,9 @@ function AccountRow({ account }: { account: FinancialAccount }) {
           {isLiability && "-"}
           {formatCurrency(balance, account.currency)}
         </p>
-        {account.type === "CREDIT_CARD" && account.creditLimit && (
+        {account.type === "CREDIT_CARD" && account.creditLimit != null && (
           <p className="text-[11px] text-muted-foreground">
-            of {formatCurrency(decToNumber(account.creditLimit), account.currency)} limit
+            of {formatCurrency(account.creditLimit, account.currency)} limit
           </p>
         )}
       </div>
@@ -56,7 +65,7 @@ function AccountRow({ account }: { account: FinancialAccount }) {
   );
 }
 
-export function AccountsList({ accounts }: { accounts: FinancialAccount[] }) {
+export function AccountsList({ accounts }: { accounts: AccountView[] }) {
   if (accounts.length === 0) {
     return (
       <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">

@@ -7,8 +7,12 @@ import type { RecurringPayment } from "@/generated/prisma/client";
 import { toggleRecurringActiveAction, deleteRecurringAction } from "@/server/actions/finance";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { formatCurrency, decToNumber } from "@/lib/finance";
+import { formatCurrency } from "@/lib/finance";
 import { cn } from "@/lib/utils";
+
+// Money field converted to a plain number server-side - see AccountView
+// in accounts-list.tsx for why.
+export type RecurringView = Omit<RecurringPayment, "amount"> & { amount: number };
 
 const INTERVAL_LABELS: Record<string, string> = {
   WEEKLY: "week",
@@ -18,7 +22,7 @@ const INTERVAL_LABELS: Record<string, string> = {
   YEARLY: "year",
 };
 
-function RecurringRow({ item }: { item: RecurringPayment }) {
+function RecurringRow({ item }: { item: RecurringView }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -35,7 +39,7 @@ function RecurringRow({ item }: { item: RecurringPayment }) {
       </div>
       <p className={cn("text-sm font-semibold tabular-nums", item.type === "INCOME" && "text-emerald-600 dark:text-emerald-400")}>
         {item.type === "INCOME" ? "+" : "-"}
-        {formatCurrency(decToNumber(item.amount), item.currency)}
+        {formatCurrency(item.amount, item.currency)}
       </p>
       <Switch
         checked={item.active}
@@ -63,7 +67,7 @@ function RecurringRow({ item }: { item: RecurringPayment }) {
   );
 }
 
-export function RecurringList({ items }: { items: RecurringPayment[] }) {
+export function RecurringList({ items }: { items: RecurringView[] }) {
   if (items.length === 0) {
     return (
       <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">

@@ -5,13 +5,19 @@ import { GoalForm } from "@/components/finance/goal-form";
 import { SavingsGoals } from "@/components/finance/savings-goals";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { decToNumber } from "@/lib/finance";
 
 export default async function GoalsPage() {
   const dbUser = await requireDbUser();
-  const goals = await prisma.savingsGoal.findMany({
+  const rows = await prisma.savingsGoal.findMany({
     where: { userId: dbUser.id, archived: false },
     orderBy: [{ isEmergencyFund: "desc" }, { createdAt: "asc" }],
   });
+  const goals = rows.map((g) => ({
+    ...g,
+    targetAmount: decToNumber(g.targetAmount),
+    currentAmount: decToNumber(g.currentAmount),
+  }));
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-4 md:p-6">

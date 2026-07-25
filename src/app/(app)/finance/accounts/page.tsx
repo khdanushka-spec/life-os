@@ -5,13 +5,19 @@ import { AccountForm } from "@/components/finance/account-form";
 import { AccountsList } from "@/components/finance/accounts-list";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { decToNumber } from "@/lib/finance";
 
 export default async function AccountsPage() {
   const dbUser = await requireDbUser();
-  const accounts = await prisma.financialAccount.findMany({
+  const rows = await prisma.financialAccount.findMany({
     where: { userId: dbUser.id, archived: false },
     orderBy: { createdAt: "asc" },
   });
+  const accounts = rows.map((a) => ({
+    ...a,
+    balance: decToNumber(a.balance),
+    creditLimit: a.creditLimit != null ? decToNumber(a.creditLimit) : null,
+  }));
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-4 md:p-6">

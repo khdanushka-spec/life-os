@@ -6,13 +6,21 @@ import { AssetLiabilityForm } from "@/components/finance/asset-liability-form";
 import { InvestmentsList } from "@/components/finance/investments-list";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { decToNumber } from "@/lib/finance";
 
 export default async function InvestmentsPage() {
   const dbUser = await requireDbUser();
-  const [investments, assetsLiabilities] = await Promise.all([
+  const [investmentRows, assetLiabilityRows] = await Promise.all([
     prisma.investment.findMany({ where: { userId: dbUser.id }, orderBy: { createdAt: "asc" } }),
     prisma.assetLiability.findMany({ where: { userId: dbUser.id }, orderBy: { createdAt: "asc" } }),
   ]);
+  const investments = investmentRows.map((i) => ({
+    ...i,
+    units: i.units != null ? decToNumber(i.units) : null,
+    costBasis: decToNumber(i.costBasis),
+    currentValue: decToNumber(i.currentValue),
+  }));
+  const assetsLiabilities = assetLiabilityRows.map((a) => ({ ...a, value: decToNumber(a.value) }));
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-4 md:p-6">

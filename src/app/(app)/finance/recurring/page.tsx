@@ -5,13 +5,15 @@ import { RecurringForm } from "@/components/finance/recurring-form";
 import { RecurringList } from "@/components/finance/recurring-list";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { decToNumber } from "@/lib/finance";
 
 export default async function RecurringPage() {
   const dbUser = await requireDbUser();
-  const items = await prisma.recurringPayment.findMany({
+  const rows = await prisma.recurringPayment.findMany({
     where: { userId: dbUser.id },
     orderBy: { nextDueDate: "asc" },
   });
+  const items = rows.map((r) => ({ ...r, amount: decToNumber(r.amount) }));
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-4 md:p-6">

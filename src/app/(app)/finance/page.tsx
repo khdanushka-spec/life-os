@@ -111,7 +111,13 @@ export default async function FinancePage({
               <CardTitle>Savings Goals</CardTitle>
             </CardHeader>
             <CardContent>
-              <SavingsGoals goals={goals} />
+              <SavingsGoals
+                goals={goals.map((g) => ({
+                  ...g,
+                  targetAmount: decToNumber(g.targetAmount),
+                  currentAmount: decToNumber(g.currentAmount),
+                }))}
+              />
             </CardContent>
           </Card>
         </div>

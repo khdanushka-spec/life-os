@@ -17,9 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { TRANSACTION_CATEGORIES } from "@/lib/finance";
-import type { FinancialAccount, TransactionType } from "@/generated/prisma/client";
+import type { TransactionType } from "@/generated/prisma/client";
 
-export function TransactionForm({ accounts }: { accounts: FinancialAccount[] }) {
+export function TransactionForm({ accounts }: { accounts: { id: string; name: string }[] }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<TransactionType>("EXPENSE");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
