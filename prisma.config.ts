@@ -13,6 +13,9 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Schema pushes/migrations need a non-pooled (session mode) connection;
+    // the app itself uses DATABASE_URL (transaction pooler) at runtime via
+    // the driver adapter in src/lib/prisma.ts.
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

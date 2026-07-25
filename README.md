@@ -4,7 +4,7 @@ Your life. Beautifully organized. Intelligently guided.
 
 Full product vision: [docs/VISION.md](docs/VISION.md).
 
-This repo currently contains the **Phase 0 foundation** — the stack is wired up, nothing is built yet.
+**Phase 0 and Phase 1 are done**: the stack is wired up, and there's working email/password auth, a protected app shell, and a Home Dashboard with mock data. Live at [life-os-k9g4.vercel.app](https://life-os-k9g4.vercel.app).
 
 ## Stack
 
@@ -24,10 +24,11 @@ The vision doc specifies Next.js 15; 16.2.11 was the current stable release when
 
 ## Getting started
 
-1. Copy `.env.example` to `.env` and fill in:
-   - `DATABASE_URL` — Supabase Postgres connection string (Settings → Database → Connection string → Transaction pooler)
+1. Copy `.env.example` to `.env.local` and fill in:
+   - `DATABASE_URL` — Supabase transaction pooler connection string (Settings → Database → Connection string), used by the running app
+   - `DIRECT_URL` — Supabase session pooler connection string (same page, port 5432), used by `prisma db push` / `migrate`
    - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` — Supabase project settings → API
-   - `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` — for AI features
+   - `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` — for AI features (not yet used by any code)
 2. Install dependencies: `npm install`
 3. Push the schema to your database: `npx prisma db push`
 4. Run the dev server: `npm run dev`
@@ -56,9 +57,9 @@ docs/
 
 ## Phase plan
 
-- **Phase 0 (this repo)** — stack scaffold: Next.js, Tailwind, shadcn/ui, Prisma, Supabase auth wiring, AI SDK installed.
-- **Phase 1** — Auth (sign up/in via Supabase), app shell (nav, command palette skeleton, dark/light theme), Home Screen static layout (Morning Briefing, Today's Focus, Smart Timeline, Daily Momentum) with mock data.
-- **Phase 2** — First real life-area module end-to-end (data model + CRUD UI + AI awareness) — likely Tasks/Projects, since most other areas depend on it existing.
+- **Phase 0 (done)** — stack scaffold: Next.js, Tailwind, shadcn/ui, Prisma, Supabase auth wiring, AI SDK installed.
+- **Phase 1 (done)** — Auth (login/signup/logout via Supabase), protected app shell (sidebar, mobile nav, user menu, dark/light mode), Home Dashboard with mock data (Morning Briefing, Today's Focus, Smart Timeline, Daily Momentum, AI Suggestions), loading/error states.
+- **Phase 2** — First real life-area module end-to-end (data model + CRUD UI + AI awareness) — likely Tasks/Projects, since most other areas depend on it existing. Also: replace Home Dashboard mock data with real data once Tasks exist.
 - **Phase 3** — AI Brain: chat interface backed by the AI SDK, retrieval over stored data, natural-language search.
 - **Phase 4** — Remaining life areas (Health, Finance, Learning, Family, Travel, Journal) one at a time, each following the same data model + UI + AI pattern.
 - **Phase 5** — Knowledge Vault (file storage, OCR, search indexing), Smart Automation rules engine.
