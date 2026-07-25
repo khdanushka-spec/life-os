@@ -1,9 +1,17 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+
+async function getSiteUrl() {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host");
+  const protocol = host?.startsWith("localhost") ? "http" : "https";
+  return `${protocol}://${host}`;
+}
 
 export type AuthActionState = {
   error?: string;
@@ -57,7 +65,7 @@ export async function signUpAction(
   const { data, error } = await supabase.auth.signUp({
     ...parsed.data,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/auth/confirm`,
+      emailRedirectTo: `${await getSiteUrl()}/auth/confirm`,
     },
   });
   if (error) return { error: error.message };
