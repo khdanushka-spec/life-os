@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { TRANSACTION_CATEGORIES } from "@/lib/finance";
+import { localDateInputValue } from "@/lib/date";
 import type { TransactionType } from "@/generated/prisma/client";
 
 export function TransactionForm({ accounts }: { accounts: { id: string; name: string }[] }) {
@@ -85,7 +86,7 @@ export function TransactionForm({ accounts }: { accounts: { id: string; name: st
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="txn-date">Date</Label>
-              <Input id="txn-date" name="date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
+              <Input id="txn-date" name="date" type="date" defaultValue={localDateInputValue()} required />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">

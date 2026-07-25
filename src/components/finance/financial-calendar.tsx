@@ -3,15 +3,14 @@ import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 import { occurrencesInRange, formatCurrency, decToNumber } from "@/lib/finance";
+import { brisbaneDateKey } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
+const dateKey = brisbaneDateKey;
 
 export async function FinancialCalendar({ userId, monthParam }: { userId: string; monthParam?: string }) {
   const [y, m] = (monthParam ?? monthKey(new Date())).split("-").map(Number);
@@ -78,7 +77,7 @@ export async function FinancialCalendar({ userId, monthParam }: { userId: string
             if (day === null) return <div key={`blank-${i}`} />;
             const key = dateKey(new Date(y, m - 1, day));
             const data = byDay.get(key);
-            const isToday = isCurrentMonth && day === new Date().getDate();
+            const isToday = isCurrentMonth && day === Number(brisbaneDateKey().split("-")[2]);
             return (
               <div
                 key={key}

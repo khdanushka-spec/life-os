@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { brisbaneToday } from "@/lib/date";
 import { Mood, type ReportPeriod } from "@/generated/prisma/client";
 import {
   getOrGenerateReflection,
@@ -84,7 +85,7 @@ export async function generateDailyPromptsAction(): Promise<string[] | null> {
 
 export async function regenerateInsightsAction(): Promise<string[] | null> {
   const dbUser = await requireDbUser();
-  const today = new Date(new Date().toISOString().slice(0, 10));
+  const today = brisbaneToday();
   await prisma.journalAiCache
     .delete({ where: { userId_date_kind: { userId: dbUser.id, date: today, kind: "insights" } } })
     .catch(() => {});
@@ -95,7 +96,7 @@ export async function regenerateInsightsAction(): Promise<string[] | null> {
 
 export async function regenerateReflectionAction(): Promise<string | null> {
   const dbUser = await requireDbUser();
-  const today = new Date(new Date().toISOString().slice(0, 10));
+  const today = brisbaneToday();
   await prisma.journalAiCache
     .delete({ where: { userId_date_kind: { userId: dbUser.id, date: today, kind: "reflection" } } })
     .catch(() => {});

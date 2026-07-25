@@ -4,20 +4,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FinancialReportCard } from "@/components/finance/financial-report";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
-import { startOfWeek, startOfMonth, startOfYear } from "@/lib/date";
+import { startOfWeek, startOfMonth, startOfYear, brisbaneToday } from "@/lib/date";
 import type { FinancialReportSummary } from "@/lib/finance";
 import type { ReportPeriod } from "@/generated/prisma/client";
-
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
 
 export default async function FinanceReportsPage() {
   const dbUser = await requireDbUser();
   const now = new Date();
 
   const periods: { period: ReportPeriod; periodStart: Date }[] = [
-    { period: "DAY", periodStart: startOfDay(now) },
+    { period: "DAY", periodStart: brisbaneToday(now) },
     { period: "WEEK", periodStart: startOfWeek(now) },
     { period: "MONTH", periodStart: startOfMonth(now) },
     { period: "YEAR", periodStart: startOfYear(now) },

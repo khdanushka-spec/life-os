@@ -14,7 +14,7 @@ import {
   findSnapshotDaysAgo,
   type FinancialReportSummary,
 } from "@/lib/finance";
-import { startOfMonth } from "@/lib/date";
+import { startOfMonth, brisbaneToday } from "@/lib/date";
 import type { ReportPeriod } from "@/generated/prisma/client";
 
 const SYSTEM =
@@ -22,9 +22,7 @@ const SYSTEM =
   "You are ALWAYS given real computed numbers; only explain and contextualize them in plain language. " +
   "Never state a number that wasn't given to you, and never invent a trend the data doesn't support.";
 
-function todayDate(): Date {
-  return new Date(new Date().toISOString().slice(0, 10));
-}
+const todayDate = brisbaneToday;
 
 async function readCache(userId: string, kind: string): Promise<unknown | null> {
   const cached = await prisma.financialAiCache.findUnique({

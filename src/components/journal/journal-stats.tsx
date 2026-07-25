@@ -3,6 +3,7 @@ import { BarChart3 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { averageMoodScore, moodForScore, longestStreak, wordCount, humanizeSeconds } from "@/lib/journal";
 import { computeStreak } from "@/lib/habits";
+import { brisbaneDateKey } from "@/lib/date";
 
 export async function JournalStats({ userId }: { userId: string }) {
   const entries = await prisma.journalEntry.findMany({
@@ -12,7 +13,7 @@ export async function JournalStats({ userId }: { userId: string }) {
 
   if (entries.length === 0) return null;
 
-  const dateKeys = new Set(entries.map((e) => e.createdAt.toISOString().slice(0, 10)));
+  const dateKeys = new Set(entries.map((e) => brisbaneDateKey(e.createdAt)));
   const current = computeStreak(dateKeys);
   const longest = longestStreak(dateKeys);
   const avgMoodScore = averageMoodScore(entries.map((e) => e.mood));

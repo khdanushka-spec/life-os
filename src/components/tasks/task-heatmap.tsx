@@ -1,16 +1,20 @@
+import { brisbaneDateKey } from "@/lib/date";
+
 const WEEKS = 12;
 
 // GitHub-style contribution grid: WEEKS columns x 7 rows, most recent
 // week last. Reuses the same "bucket by day, color by count" idea as
 // the month-grid calendars, laid out as columns instead since a heatmap
-// reads better as a continuous strip than a single month.
+// reads better as a continuous strip than a single month. Keys must be
+// Brisbane calendar days to line up with completionsByDay's keys (see
+// lib/tasks.ts), which are also Brisbane-keyed.
 export function TaskHeatmap({ completionsByDay }: { completionsByDay: Map<string, number> }) {
   const today = new Date();
   const days: { key: string; count: number }[] = [];
   for (let i = WEEKS * 7 - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const key = brisbaneDateKey(d);
     days.push({ key, count: completionsByDay.get(key) ?? 0 });
   }
   const max = Math.max(1, ...days.map((d) => d.count));

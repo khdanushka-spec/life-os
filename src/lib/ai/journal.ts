@@ -4,6 +4,7 @@ import { z } from "zod";
 import { resolveAiModel } from "@/lib/ai/providers";
 import { prisma } from "@/lib/prisma";
 import { moodMeta, journalReportSchema, type JournalReportSummary } from "@/lib/journal";
+import { brisbaneToday } from "@/lib/date";
 import type { JournalEntry, ReportPeriod } from "@/generated/prisma/client";
 
 const insightsSchema = z.object({ insights: z.array(z.string()).max(5) });
@@ -26,9 +27,7 @@ function entryLines(entries: JournalEntry[]): string {
     .join("\n");
 }
 
-function todayDate(): Date {
-  return new Date(new Date().toISOString().slice(0, 10));
-}
+const todayDate = brisbaneToday;
 
 async function readCache(userId: string, kind: string): Promise<unknown | null> {
   const cached = await prisma.journalAiCache.findUnique({

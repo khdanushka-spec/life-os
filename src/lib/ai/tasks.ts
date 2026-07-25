@@ -4,6 +4,7 @@ import { z } from "zod";
 import { resolveAiModel } from "@/lib/ai/providers";
 import { prisma } from "@/lib/prisma";
 import { taskReportNarrativeSchema, type TaskReportSummary } from "@/lib/tasks";
+import { brisbaneToday } from "@/lib/date";
 import type { Task, ReportPeriod, Priority } from "@/generated/prisma/client";
 
 const SYSTEM =
@@ -11,9 +12,7 @@ const SYSTEM =
   "You only ever see the user's real task data below. Never invent a task, a date, " +
   "or a fact that isn't explicitly given to you.";
 
-function todayDate(): Date {
-  return new Date(new Date().toISOString().slice(0, 10));
-}
+const todayDate = brisbaneToday;
 
 async function readCache(userId: string, kind: string): Promise<unknown | null> {
   const cached = await prisma.taskAiCache.findUnique({

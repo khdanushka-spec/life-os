@@ -3,10 +3,7 @@ import { NotebookPen, Flame } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 import { moodMeta } from "@/lib/journal";
-
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
+import { startOfBrisbaneDay, brisbaneToday } from "@/lib/date";
 
 // "Related" here means same-day context (the task's due date) rather than
 // an explicit link field - a lightweight, honest interpretation that
@@ -14,9 +11,14 @@ function startOfDay(date: Date): Date {
 // relation the schema doesn't have.
 export async function TaskRelated({ userId, dueDate }: { userId: string; dueDate: Date | null }) {
   if (!dueDate) return null;
-  const dayStart = startOfDay(dueDate);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  // Two different "day start" values are needed here: journalEntry.createdAt
+  // is a real timestamp (needs the actual Brisbane-midnight instant),
+  // while HabitLog.date is a @db.Date column (needs the UTC-midnight
+  // value whose date components equal the Brisbane calendar day) - see
+  // lib/date.ts's startOfBrisbaneDay vs brisbaneToday for why they differ.
+  const dayStart = startOfBrisbaneDay(dueDate);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+  const habitLogDate = brisbaneToday(dueDate);
 
   const [journalEntries, habits] = await Promise.all([
     prisma.journalEntry.findMany({
@@ -26,7 +28,7 @@ export async function TaskRelated({ userId, dueDate }: { userId: string; dueDate
     }),
     prisma.habit.findMany({
       where: { userId, archived: false },
-      include: { logs: { where: { date: dayStart } } },
+      include: { logs: { where: { date: habitLogDate } } },
     }),
   ]);
 

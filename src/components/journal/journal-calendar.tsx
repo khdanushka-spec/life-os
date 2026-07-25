@@ -3,15 +3,14 @@ import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 import { averageMoodScore, moodForScore } from "@/lib/journal";
+import { brisbaneDateKey } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
+const dateKey = brisbaneDateKey;
 
 export async function JournalCalendar({
   userId,

@@ -18,6 +18,17 @@ export function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+// For <input type="date"> defaultValues in Client Components - uses the
+// browser's own local date components (not .toISOString(), which forces
+// UTC and shows yesterday's date as the default for part of the day in
+// any timezone ahead of UTC, Brisbane included).
+export function localDateInputValue(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 // The app is Brisbane-based (see lib/weather.ts) but server code (Vercel
 // serverless) runs in UTC, so a plain startOfDay() draws the "today"
 // boundary ~10h too early/late for a Brisbane user. Queensland never
@@ -36,6 +47,19 @@ export function brisbaneDateKey(date: Date = new Date()): string {
 
 export function startOfBrisbaneDay(date: Date = new Date()): Date {
   return new Date(`${brisbaneDateKey(date)}T00:00:00${BRISBANE_UTC_OFFSET}`);
+}
+
+// For @db.Date columns (HabitLog.date, the AI-cache "date" columns, etc.)
+// and for date-key equality checks - NOT the same value as
+// startOfBrisbaneDay(). This returns a Date whose *UTC* calendar-day
+// components equal Brisbane's calendar date, so storing it in a
+// date-only column (or reading it back via .toISOString().slice(0,10))
+// round-trips to the correct Brisbane day. startOfBrisbaneDay() instead
+// returns the actual instant of Brisbane midnight (correct for filtering
+// real DateTime columns like dueDate/completedAt by range) - the two are
+// ~10h apart and are not interchangeable.
+export function brisbaneToday(date: Date = new Date()): Date {
+  return new Date(`${brisbaneDateKey(date)}T00:00:00.000Z`);
 }
 
 // Recurrence math, originally written for Finance's RecurringPayment and

@@ -11,6 +11,7 @@ import {
   Archive,
   Pin,
 } from "lucide-react";
+import { brisbaneDateKey } from "@/lib/date";
 import type { Priority, EnergyLevel, TaskStatus } from "@/generated/prisma/client";
 
 // Priority reuses the dataviz-skill's fixed STATUS palette (good -> warning
@@ -122,7 +123,7 @@ export function estimateWorkloadMinutes(
 export function completionsByDay(completedDates: Date[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const d of completedDates) {
-    const key = d.toISOString().slice(0, 10);
+    const key = brisbaneDateKey(d);
     map.set(key, (map.get(key) ?? 0) + 1);
   }
   return map;

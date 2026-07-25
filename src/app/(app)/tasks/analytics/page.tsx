@@ -9,7 +9,7 @@ import { requireDbUser } from "@/server/db-user";
 import { computeStreak } from "@/lib/habits";
 import { longestStreak } from "@/lib/journal";
 import { completionsByDay } from "@/lib/tasks";
-import { startOfWeek, startOfMonth, startOfDay } from "@/lib/date";
+import { startOfWeek, startOfMonth, brisbaneToday, brisbaneDateKey } from "@/lib/date";
 import type { ReportPeriod } from "@/generated/prisma/client";
 
 export default async function TaskAnalyticsPage() {
@@ -44,7 +44,7 @@ export default async function TaskAnalyticsPage() {
     .filter((t) => t.energy === "DEEP_FOCUS")
     .reduce((sum, t) => sum + (t.actualMinutes ?? 0), 0);
 
-  const dateKeys = new Set(completedTasks.map((t) => t.completedAt!.toISOString().slice(0, 10)));
+  const dateKeys = new Set(completedTasks.map((t) => brisbaneDateKey(t.completedAt!)));
   const streak = computeStreak(dateKeys);
   const longest = longestStreak(dateKeys);
 
@@ -60,7 +60,7 @@ export default async function TaskAnalyticsPage() {
   }
 
   const periods: { period: ReportPeriod; periodStart: Date }[] = [
-    { period: "DAY", periodStart: startOfDay(now) },
+    { period: "DAY", periodStart: brisbaneToday(now) },
     { period: "WEEK", periodStart: weekStart },
     { period: "MONTH", periodStart: monthStart },
   ];

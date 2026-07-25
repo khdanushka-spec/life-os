@@ -4,10 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
-
-function todayDate(): Date {
-  return new Date(new Date().toISOString().slice(0, 10));
-}
+import { brisbaneToday } from "@/lib/date";
 
 const createHabitSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(140),
@@ -36,7 +33,7 @@ export async function toggleHabitTodayAction(habitId: string, done: boolean) {
   });
   if (!habit) return;
 
-  const date = todayDate();
+  const date = brisbaneToday();
 
   if (done) {
     await prisma.habitLog.upsert({

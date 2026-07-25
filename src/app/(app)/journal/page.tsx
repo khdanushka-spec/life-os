@@ -5,7 +5,7 @@ import { computeStreak } from "@/lib/habits";
 import { fallbackPromptsForToday, wordCount, journalReportSchema } from "@/lib/journal";
 import { getOrGenerateReflection, getOrGenerateInsights } from "@/lib/ai/journal";
 import { getBrisbaneWeather } from "@/lib/weather";
-import { startOfWeek, startOfMonth } from "@/lib/date";
+import { startOfWeek, startOfMonth, startOfBrisbaneDay, brisbaneDateKey } from "@/lib/date";
 
 import { JournalHeader } from "@/components/journal/journal-header";
 import { TodayCard } from "@/components/journal/today-card";
@@ -18,10 +18,13 @@ import { JournalCalendar } from "@/components/journal/journal-calendar";
 import { JournalStats } from "@/components/journal/journal-stats";
 import { WeeklyReport } from "@/components/journal/weekly-report";
 
+// dateStr is always a Brisbane calendar date (either "today" via
+// brisbaneDateKey(), or a ?date= param from the Brisbane-keyed calendar
+// links) - resolve it to the actual Brisbane-day instant range, not the
+// server's (UTC) midnight-to-midnight.
 function dayRange(dateStr: string): { gte: Date; lt: Date } {
-  const start = new Date(`${dateStr}T00:00:00`);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  const start = startOfBrisbaneDay(new Date(`${dateStr}T00:00:00Z`));
+  const end = new Date(start.getTime() + 86_400_000);
   return { gte: start, lt: end };
 }
 
@@ -60,22 +63,22 @@ export default async function JournalPage({
     prisma.journalEntry.findMany({ where, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.journalEntry.findMany({ where: { userId }, select: { createdAt: true, contentText: true } }),
     prisma.journalEntry.findFirst({
-      where: { userId, createdAt: dayRange(new Date().toISOString().slice(0, 10)) },
+      where: { userId, createdAt: dayRange(brisbaneDateKey()) },
       orderBy: { createdAt: "desc" },
     }),
     getBrisbaneWeather(),
   ]);
 
-  const dateKeys = new Set(allDateRows.map((e) => e.createdAt.toISOString().slice(0, 10)));
+  const dateKeys = new Set(allDateRows.map((e) => brisbaneDateKey(e.createdAt)));
   const streak = computeStreak(dateKeys);
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const entriesThisWeek = allDateRows.filter((e) => e.createdAt >= weekAgo).length;
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = brisbaneDateKey();
   const wordsToday = allDateRows
-    .filter((e) => e.createdAt.toISOString().slice(0, 10) === todayKey)
+    .filter((e) => brisbaneDateKey(e.createdAt) === todayKey)
     .reduce((sum, e) => sum + wordCount(e.contentText), 0);
 
   const todayEnergy = todayEntry?.energyEvening ?? todayEntry?.energyAfternoon ?? todayEntry?.energyMorning ?? null;

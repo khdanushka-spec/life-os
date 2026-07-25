@@ -1,18 +1,20 @@
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { brisbaneDateKey } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
+const dateKey = brisbaneDateKey;
 
 // Same month-grid pattern as the Journal and Finance calendars, this
 // time dotting days that have a task due.
 export function MiniCalendar({ dueDates }: { dueDates: Date[] }) {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
+  // Brisbane's today, not the server's (Vercel runs UTC) - built from the
+  // date-key string rather than `new Date()` directly, same reasoning as
+  // lib/date.ts's brisbaneToday().
+  const [by, bm, bd] = brisbaneDateKey().split("-").map(Number);
+  const y = by;
+  const m = bm - 1;
   const byDay = new Set(dueDates.map(dateKey));
 
   const totalDays = new Date(y, m + 1, 0).getDate();
@@ -27,7 +29,7 @@ export function MiniCalendar({ dueDates }: { dueDates: Date[] }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm">
           <CalendarDays className="size-4 text-primary" />
-          {now.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+          {new Date(y, m, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -41,7 +43,7 @@ export function MiniCalendar({ dueDates }: { dueDates: Date[] }) {
             if (day === null) return <div key={`blank-${i}`} />;
             const key = dateKey(new Date(y, m, day));
             const hasDue = byDay.has(key);
-            const isToday = day === now.getDate();
+            const isToday = day === bd;
             return (
               <Link
                 key={key}

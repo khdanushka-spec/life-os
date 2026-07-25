@@ -8,11 +8,8 @@ import { QuickNote } from "@/components/tasks/quick-note";
 import { PRIORITY_META } from "@/lib/tasks";
 import { getBrisbaneWeather } from "@/lib/weather";
 import { prisma } from "@/lib/prisma";
+import { brisbaneDateKey } from "@/lib/date";
 import type { Task } from "@/generated/prisma/client";
-
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
 
 export async function RightSidebar({
   userId,
@@ -29,9 +26,9 @@ export async function RightSidebar({
   ]);
 
   const now = new Date();
-  const today = startOfDay(now);
+  const today = brisbaneDateKey(now);
   const todaysSchedule = tasks
-    .filter((t) => t.dueDate && startOfDay(t.dueDate).getTime() === today.getTime() && t.status !== "DONE")
+    .filter((t) => t.dueDate && brisbaneDateKey(t.dueDate) === today && t.status !== "DONE")
     .sort((a, b) => (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0));
 
   const upcomingDeadlines = tasks

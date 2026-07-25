@@ -1,5 +1,11 @@
+import { brisbaneDateKey } from "@/lib/date";
+
+// Brisbane's calendar date, not the server's (Vercel runs UTC) - a habit
+// toggled at 1am Brisbane time was previously logged against yesterday's
+// UTC date, silently "un-completing" the habit once the app's own UTC
+// clock caught up hours later.
 export function todayDateKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return brisbaneDateKey();
 }
 
 // 60 days is plenty for a meaningful streak without pulling full history.

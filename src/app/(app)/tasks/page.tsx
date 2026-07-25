@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
-import { startOfDay, startOfWeek } from "@/lib/date";
+import { startOfWeek, startOfBrisbaneDay, brisbaneDateKey } from "@/lib/date";
 import { computeFocusScore, estimateWorkloadMinutes, SMART_LISTS, type SmartListId } from "@/lib/tasks";
 import { getOrGenerateDailyInsight } from "@/lib/ai/tasks";
 import { TasksHero } from "@/components/tasks/tasks-hero";
@@ -12,8 +12,10 @@ import { TaskBoard } from "@/components/tasks/task-board";
 import { RightSidebar } from "@/components/tasks/right-sidebar";
 import type { Task, Priority } from "@/generated/prisma/client";
 
+// Brisbane calendar-day equality, not the server's (UTC) - see
+// lib/date.ts's brisbaneDateKey for why.
 function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return brisbaneDateKey(a) === brisbaneDateKey(b);
 }
 
 function matchesList(task: Task, list: SmartListId, now: Date): boolean {
@@ -26,7 +28,7 @@ function matchesList(task: Task, list: SmartListId, now: Date): boolean {
   if (task.status === "DONE") return false;
 
   if (list === "inbox") return !task.projectId && !task.dueDate;
-  if (list === "overdue") return !!task.dueDate && task.dueDate < startOfDay(now);
+  if (list === "overdue") return !!task.dueDate && task.dueDate < startOfBrisbaneDay(now);
   if (list === "today") return !!task.dueDate && isSameDay(task.dueDate, now);
   if (list === "week") {
     if (!task.dueDate) return false;
@@ -35,7 +37,7 @@ function matchesList(task: Task, list: SmartListId, now: Date): boolean {
     weekEnd.setDate(weekEnd.getDate() + 7);
     return task.dueDate >= weekStart && task.dueDate < weekEnd;
   }
-  if (list === "upcoming") return !!task.dueDate && task.dueDate >= startOfDay(now) && !isSameDay(task.dueDate, now);
+  if (list === "upcoming") return !!task.dueDate && task.dueDate >= startOfBrisbaneDay(now) && !isSameDay(task.dueDate, now);
   return false;
 }
 

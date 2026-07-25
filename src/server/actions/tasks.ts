@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { brisbaneToday } from "@/lib/date";
 import { Priority, EnergyLevel, TaskStatus, RecurringInterval, type ReportPeriod } from "@/generated/prisma/client";
 import {
   parseQuickCapture,
@@ -242,7 +243,7 @@ export async function draftMessageAction(taskId: string): Promise<string | null>
 
 export async function regenerateDailyInsightAction(): Promise<string | null> {
   const dbUser = await requireDbUser();
-  const today = new Date(new Date().toISOString().slice(0, 10));
+  const today = brisbaneToday();
   await prisma.taskAiCache
     .delete({ where: { userId_date_kind: { userId: dbUser.id, date: today, kind: "insight" } } })
     .catch(() => {});

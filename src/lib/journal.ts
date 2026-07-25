@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { startOfBrisbaneDay } from "@/lib/date";
 import type { Mood } from "@/generated/prisma/client";
 export { todayDateKey } from "@/lib/habits";
 
@@ -139,9 +140,8 @@ export function humanizeSeconds(totalSeconds: number): string {
 export type TimelineBucket = "today" | "yesterday" | "lastWeek" | "lastMonth" | "older";
 
 export function timelineBucketFor(date: Date, now = new Date()): TimelineBucket {
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const today = startOfDay(now);
-  const target = startOfDay(date);
+  const today = startOfBrisbaneDay(now);
+  const target = startOfBrisbaneDay(date);
   const dayMs = 86_400_000;
   const diffDays = Math.round((today.getTime() - target.getTime()) / dayMs);
 

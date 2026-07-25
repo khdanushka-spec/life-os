@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { TRANSACTION_CATEGORIES } from "@/lib/finance";
+import { localDateInputValue } from "@/lib/date";
 import type { RecurringInterval, TransactionType } from "@/generated/prisma/client";
 
 const INTERVALS: { value: RecurringInterval; label: string }[] = [
@@ -83,7 +84,7 @@ export function RecurringForm() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rec-date">Next due</Label>
-              <Input id="rec-date" name="nextDueDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
+              <Input id="rec-date" name="nextDueDate" type="date" required defaultValue={localDateInputValue()} />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">

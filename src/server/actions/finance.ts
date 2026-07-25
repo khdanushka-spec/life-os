@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { brisbaneToday } from "@/lib/date";
 import {
   AccountType,
   TransactionType,
@@ -330,7 +331,7 @@ export async function deleteAssetLiabilityAction(id: string) {
 
 export async function regenerateCashflowNarrativeAction() {
   const dbUser = await requireDbUser();
-  const today = new Date(new Date().toISOString().slice(0, 10));
+  const today = brisbaneToday();
   await prisma.financialAiCache
     .delete({ where: { userId_date_kind: { userId: dbUser.id, date: today, kind: "cashflow" } } })
     .catch(() => {});
@@ -341,7 +342,7 @@ export async function regenerateCashflowNarrativeAction() {
 
 export async function regenerateSpendingInsightsAction() {
   const dbUser = await requireDbUser();
-  const today = new Date(new Date().toISOString().slice(0, 10));
+  const today = brisbaneToday();
   await prisma.financialAiCache
     .delete({ where: { userId_date_kind: { userId: dbUser.id, date: today, kind: "insights" } } })
     .catch(() => {});
@@ -352,7 +353,7 @@ export async function regenerateSpendingInsightsAction() {
 
 export async function regenerateHealthScoreNarrativeAction() {
   const dbUser = await requireDbUser();
-  const today = new Date(new Date().toISOString().slice(0, 10));
+  const today = brisbaneToday();
   await prisma.financialAiCache
     .delete({ where: { userId_date_kind: { userId: dbUser.id, date: today, kind: "healthscore" } } })
     .catch(() => {});
