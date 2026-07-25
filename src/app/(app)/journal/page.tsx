@@ -5,6 +5,7 @@ import { computeStreak } from "@/lib/habits";
 import { fallbackPromptsForToday, wordCount, journalReportSchema } from "@/lib/journal";
 import { getOrGenerateReflection, getOrGenerateInsights } from "@/lib/ai/journal";
 import { getBrisbaneWeather } from "@/lib/weather";
+import { startOfWeek, startOfMonth } from "@/lib/date";
 
 import { JournalHeader } from "@/components/journal/journal-header";
 import { TodayCard } from "@/components/journal/today-card";
@@ -16,18 +17,6 @@ import { Memories } from "@/components/journal/memories";
 import { JournalCalendar } from "@/components/journal/journal-calendar";
 import { JournalStats } from "@/components/journal/journal-stats";
 import { WeeklyReport } from "@/components/journal/weekly-report";
-
-function startOfWeek(date: Date): Date {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1) - day;
-  d.setDate(d.getDate() + diff);
-  return d;
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
 
 function dayRange(dateStr: string): { gte: Date; lt: Date } {
   const start = new Date(`${dateStr}T00:00:00`);

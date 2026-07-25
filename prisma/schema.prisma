@@ -36,12 +36,22 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tasks            Task[]
-  habits           Habit[]
-  journalEntries   JournalEntry[]
-  journalAiCaches  JournalAiCache[]
-  journalReports   JournalReport[]
-  sessions         Session[]
+  tasks               Task[]
+  habits              Habit[]
+  journalEntries      JournalEntry[]
+  journalAiCaches     JournalAiCache[]
+  journalReports      JournalReport[]
+  financialAccounts   FinancialAccount[]
+  transactions        Transaction[]
+  recurringPayments   RecurringPayment[]
+  budgets             Budget[]
+  savingsGoals        SavingsGoal[]
+  investments         Investment[]
+  assetsLiabilities   AssetLiability[]
+  netWorthSnapshots   NetWorthSnapshot[]
+  financialAiCaches   FinancialAiCache[]
+  financialReports    FinancialReport[]
+  sessions            Session[]
 }
 
 // DB-backed sessions for locally-authenticated admin users. id stores a
@@ -156,14 +166,229 @@ model JournalAiCache {
 }
 
 enum ReportPeriod {
+  DAY
   WEEK
   MONTH
+  YEAR
 }
 
 // User-triggered (no scheduler in this app) weekly/monthly AI reflection.
 // summary shape is enforced by a Zod schema at the call site, not by
 // individual columns, so the AI output can evolve without a migration.
 model JournalReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CASH
+  CREDIT_CARD
+  LOAN
+}
+
+model FinancialAccount {
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @db.Uuid
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  type         AccountType
+  balance      Decimal     @db.Decimal(14, 2)
+  creditLimit  Decimal?    @db.Decimal(14, 2)
+  interestRate Float?
+  currency     String      @default("AUD")
+  archived     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  transactions Transaction[]
+
+  @@index([userId, archived])
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+model Transaction {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String           @db.Uuid
+  account     FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      Decimal          @db.Decimal(14, 2)
+  currency    String           @default("AUD")
+  category    String
+  description String?
+  date        DateTime
+  tags        String[]         @default([])
+  // Set when this row was generated from a RecurringPayment - lets us
+  // avoid double-generating the same occurrence.
+  recurringId String?          @db.Uuid
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([userId, date])
+  @@index([accountId])
+}
+
+enum RecurringInterval {
+  WEEKLY
+  FORTNIGHTLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+// Bills/subscriptions/recurring income. The financial calendar projects
+// upcoming occurrences forward from nextDueDate by interval at render
+// time rather than materializing every future row.
+model RecurringPayment {
+  id          String            @id @default(uuid()) @db.Uuid
+  userId      String            @db.Uuid
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  amount      Decimal           @db.Decimal(14, 2)
+  currency    String            @default("AUD")
+  type        TransactionType
+  category    String
+  interval    RecurringInterval
+  nextDueDate DateTime          @db.Date
+  autoPay     Boolean           @default(false)
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([userId, active])
+}
+
+// One row per category per month. Yearly comparison aggregates the
+// twelve monthly rows rather than needing a separate yearly table.
+model Budget {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     String
+  monthlyLimit Decimal  @db.Decimal(14, 2)
+  month        DateTime @db.Date
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, category, month])
+}
+
+model SavingsGoal {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  targetAmount    Decimal   @db.Decimal(14, 2)
+  currentAmount   Decimal   @default(0) @db.Decimal(14, 2)
+  targetDate      DateTime? @db.Date
+  linkedAccountId String?   @db.Uuid
+  // Flags the one goal the health score checks for emergency-fund
+  // coverage - not a separate model, just a distinguished SavingsGoal.
+  isEmergencyFund Boolean   @default(false)
+  archived        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId, archived])
+}
+
+enum InvestmentType {
+  SHARES
+  ETF
+  CRYPTO
+  PROPERTY
+  SUPERANNUATION
+  OTHER
+}
+
+// currentValue is manually updated in this phase - no live market data
+// feed yet (see plan: deferred to a follow-up pass).
+model Investment {
+  id           String         @id @default(uuid()) @db.Uuid
+  userId       String         @db.Uuid
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  type         InvestmentType
+  units        Decimal?       @db.Decimal(18, 6)
+  costBasis    Decimal        @db.Decimal(14, 2)
+  currentValue Decimal        @db.Decimal(14, 2)
+  currency     String         @default("AUD")
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+enum AssetLiabilityKind {
+  ASSET
+  LIABILITY
+}
+
+// Catch-all for anything not already a FinancialAccount or Investment
+// (a car, jewelry, a personal loan not modeled as an account).
+model AssetLiability {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @db.Uuid
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      AssetLiabilityKind
+  name      String
+  category  String
+  value     Decimal             @db.Decimal(14, 2)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@index([userId, kind])
+}
+
+// Upserted once per day (lazily, on dashboard load) - powers the net
+// worth trend chart without needing a cron job, same pattern as the
+// once-per-day AI caches.
+model NetWorthSnapshot {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date             DateTime @db.Date
+  netWorth         Decimal  @db.Decimal(14, 2)
+  totalAssets      Decimal  @db.Decimal(14, 2)
+  totalLiabilities Decimal  @db.Decimal(14, 2)
+  createdAt        DateTime @default(now())
+
+  @@unique([userId, date])
+}
+
+// Same shape and purpose as JournalAiCache: caches the cash-flow,
+// spending-insights, and health-score AI narratives once per day.
+model FinancialAiCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  kind      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, kind])
+}
+
+// User-triggered daily/weekly/monthly/yearly report. summary shape is
+// enforced by a Zod schema at the call site, same as JournalReport.
+model FinancialReport {
   id          String       @id @default(uuid()) @db.Uuid
   userId      String       @db.Uuid
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)

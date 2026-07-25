@@ -15,6 +15,8 @@ import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { todayDateKey } from "@/lib/habits";
 import { greeting } from "@/lib/greeting";
+import { startOfMonth } from "@/lib/date";
+import { decToNumber } from "@/lib/finance";
 import type { Task } from "@/generated/prisma/client";
 
 const mockFocusItems = [
@@ -63,9 +65,10 @@ async function getDashboardData(): Promise<{
   name: string;
   tasks: Task[] | null;
   habitsPercent: number | null;
+  financePercent: number | null;
 }> {
   if (!isSupabaseConfigured()) {
-    return { name: "there", tasks: null, habitsPercent: null };
+    return { name: "there", tasks: null, habitsPercent: null, financePercent: null };
   }
 
   const dbUser = await requireDbUser();
@@ -85,12 +88,27 @@ async function getDashboardData(): Promise<{
       )
     : null;
 
+  const monthStart = startOfMonth(new Date());
+  const budgets = await prisma.budget.findMany({ where: { userId: dbUser.id, month: monthStart } });
+  let financePercent: number | null = null;
+  if (budgets.length) {
+    const spend = await prisma.transaction.findMany({
+      where: { userId: dbUser.id, type: "EXPENSE", date: { gte: monthStart } },
+    });
+    const spendByCategory: Record<string, number> = {};
+    for (const t of spend) {
+      spendByCategory[t.category] = (spendByCategory[t.category] ?? 0) + decToNumber(t.amount);
+    }
+    const underLimit = budgets.filter((b) => (spendByCategory[b.category] ?? 0) <= decToNumber(b.monthlyLimit)).length;
+    financePercent = Math.round((underLimit / budgets.length) * 100);
+  }
+
   const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
-  return { name, tasks, habitsPercent };
+  return { name, tasks, habitsPercent, financePercent };
 }
 
 export default async function HomePage() {
-  const { name, tasks, habitsPercent } = await getDashboardData();
+  const { name, tasks, habitsPercent, financePercent } = await getDashboardData();
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -231,17 +249,12 @@ export default async function HomePage() {
           <CardDescription>How today is tracking, area by area</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap justify-around gap-6">
-          {momentum.map((m) => (
-            <CircularProgress
-              key={m.label}
-              value={
-                m.label === "Habits" && habitsPercent !== null
-                  ? habitsPercent
-                  : m.value
-              }
-              label={m.label}
-            />
-          ))}
+          {momentum.map((m) => {
+            let value = m.value;
+            if (m.label === "Habits" && habitsPercent !== null) value = habitsPercent;
+            if (m.label === "Finance" && financePercent !== null) value = financePercent;
+            return <CircularProgress key={m.label} value={value} label={m.label} />;
+          })}
         </CardContent>
       </Card>
 
