@@ -2,6 +2,7 @@ import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import { resolveAiModel } from "@/lib/ai/providers";
 import { getDbUser } from "@/server/db-user";
 import { prisma } from "@/lib/prisma";
+import { todayDateKey } from "@/lib/habits";
 
 export async function POST(req: Request) {
   const dbUser = await getDbUser();
@@ -29,12 +30,25 @@ export async function POST(req: Request) {
         .join("\n")
     : "No pending tasks right now.";
 
+  const habits = await prisma.habit.findMany({
+    where: { userId: dbUser.id, archived: false },
+    include: { logs: { where: { date: new Date(todayDateKey()) } } },
+  });
+  const habitSummary = habits.length
+    ? habits
+        .map((h) => `- ${h.title}: ${h.logs.length > 0 ? "done today" : "not done yet today"}`)
+        .join("\n")
+    : "No habits being tracked right now.";
+
   const system = `You are the AI Brain inside AURA OS, a calm, AI-first personal life-management app. Be concise, warm, and direct - this is a personal assistant, not a customer support bot.
 
-You currently only have visibility into the user's pending tasks. Don't claim to know about their calendar, health, finances, or other life areas - those modules don't exist yet.
+You currently only have visibility into the user's pending tasks and daily habits. Don't claim to know about their calendar, health metrics, finances, or other life areas - those modules don't exist yet.
 
 Their current pending tasks:
-${taskSummary}`;
+${taskSummary}
+
+Their habits and today's status:
+${habitSummary}`;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 

@@ -13,6 +13,7 @@ import { Sparkles, Cloud, Clock, CheckCircle2 } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { todayDateKey } from "@/lib/habits";
 import type { Task } from "@/generated/prisma/client";
 
 const mockFocusItems = [
@@ -67,8 +68,11 @@ function greeting() {
 async function getDashboardData(): Promise<{
   name: string;
   tasks: Task[] | null;
+  habitsPercent: number | null;
 }> {
-  if (!isSupabaseConfigured()) return { name: "there", tasks: null };
+  if (!isSupabaseConfigured()) {
+    return { name: "there", tasks: null, habitsPercent: null };
+  }
 
   const dbUser = await requireDbUser();
   const tasks = await prisma.task.findMany({
@@ -77,12 +81,22 @@ async function getDashboardData(): Promise<{
     take: 3,
   });
 
+  const habits = await prisma.habit.findMany({
+    where: { userId: dbUser.id, archived: false },
+    include: { logs: { where: { date: new Date(todayDateKey()) } } },
+  });
+  const habitsPercent = habits.length
+    ? Math.round(
+        (habits.filter((h) => h.logs.length > 0).length / habits.length) * 100,
+      )
+    : null;
+
   const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
-  return { name, tasks };
+  return { name, tasks, habitsPercent };
 }
 
 export default async function HomePage() {
-  const { name, tasks } = await getDashboardData();
+  const { name, tasks, habitsPercent } = await getDashboardData();
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -224,7 +238,15 @@ export default async function HomePage() {
         </CardHeader>
         <CardContent className="flex flex-wrap justify-around gap-6">
           {momentum.map((m) => (
-            <CircularProgress key={m.label} value={m.value} label={m.label} />
+            <CircularProgress
+              key={m.label}
+              value={
+                m.label === "Habits" && habitsPercent !== null
+                  ? habitsPercent
+                  : m.value
+              }
+              label={m.label}
+            />
           ))}
         </CardContent>
       </Card>

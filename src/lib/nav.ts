@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Home,
   ListChecks,
+  Flame,
   Briefcase,
   HeartPulse,
   Wallet,
@@ -22,6 +23,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { title: "Home", href: "/home", icon: Home },
   { title: "Tasks", href: "/tasks", icon: ListChecks },
+  { title: "Habits", href: "/habits", icon: Flame },
   { title: "AI Brain", href: "/ai", icon: Sparkles },
   { title: "Work", href: "/work", icon: Briefcase, disabled: true },
   { title: "Health", href: "/health", icon: HeartPulse, disabled: true },

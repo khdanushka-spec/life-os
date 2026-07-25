@@ -37,6 +37,7 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   tasks    Task[]
+  habits   Habit[]
   sessions Session[]
 }
 
@@ -70,4 +71,31 @@ model Task {
   updatedAt   DateTime   @updatedAt
 
   @@index([userId, status])
+}
+
+model Habit {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs HabitLog[]
+
+  @@index([userId, archived])
+}
+
+// One row per calendar day a habit was completed. The unique constraint
+// on (habitId, date) both prevents double-logging and makes "toggle
+// today" a simple create-or-delete.
+model HabitLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  habitId   String   @db.Uuid
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@unique([habitId, date])
 }
