@@ -15,9 +15,10 @@ import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { todayDateKey } from "@/lib/habits";
 import { greeting } from "@/lib/greeting";
-import { startOfMonth } from "@/lib/date";
+import { startOfMonth, startOfBrisbaneDay } from "@/lib/date";
 import { decToNumber } from "@/lib/finance";
-import { computeFocusScore, estimateWorkloadMinutes } from "@/lib/tasks";
+import { computeFocusScore, estimateWorkloadMinutes, buildSmartTimeline, type SmartTimelineBuckets } from "@/lib/tasks";
+import { BrisbaneClock } from "@/components/brisbane-clock";
 import type { Task } from "@/generated/prisma/client";
 
 const mockFocusItems = [
@@ -37,16 +38,6 @@ function formatDue(date: Date) {
   if (sameDay(d, tomorrow)) return "Tomorrow";
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
-
-const timeline = {
-  current: [{ time: "10:00", title: "Deep work: Phase 1 build" }],
-  next: [{ time: "12:00", title: "Lunch + short walk" }],
-  later: [
-    { time: "15:00", title: "Team sync" },
-    { time: "18:00", title: "Gym" },
-  ],
-  completed: [{ time: "08:30", title: "Morning journal entry" }],
-};
 
 const momentum = [
   { label: "Tasks", value: 62 },
@@ -68,9 +59,10 @@ async function getDashboardData(): Promise<{
   habitsPercent: number | null;
   financePercent: number | null;
   tasksPercent: number | null;
+  timeline: SmartTimelineBuckets | null;
 }> {
   if (!isSupabaseConfigured()) {
-    return { name: "there", tasks: null, habitsPercent: null, financePercent: null, tasksPercent: null };
+    return { name: "there", tasks: null, habitsPercent: null, financePercent: null, tasksPercent: null, timeline: null };
   }
 
   const dbUser = await requireDbUser();
@@ -80,18 +72,32 @@ async function getDashboardData(): Promise<{
     take: 3,
   });
 
-  const todayStart = new Date(new Date().toISOString().slice(0, 10));
-  const [dueTodayTasks, completedTodayTasks] = await Promise.all([
+  const now = new Date();
+  const todayStart = startOfBrisbaneDay(now);
+  const todayEnd = new Date(todayStart.getTime() + 86_400_000);
+  const [dueTodayTasks, completedTodayTasks, todaysTasks] = await Promise.all([
     prisma.task.findMany({
-      where: { userId: dbUser.id, parentId: null, dueDate: { gte: todayStart, lt: new Date(todayStart.getTime() + 86_400_000) } },
+      where: { userId: dbUser.id, parentId: null, dueDate: { gte: todayStart, lt: todayEnd } },
     }),
     prisma.task.count({
       where: { userId: dbUser.id, parentId: null, status: "DONE", completedAt: { gte: todayStart } },
+    }),
+    prisma.task.findMany({
+      where: {
+        userId: dbUser.id,
+        parentId: null,
+        archived: false,
+        OR: [
+          { dueDate: { gte: todayStart, lt: todayEnd } },
+          { status: "DONE", completedAt: { gte: todayStart, lt: todayEnd } },
+        ],
+      },
     }),
   ]);
   const overdueCount = await prisma.task.count({
     where: { userId: dbUser.id, parentId: null, status: { notIn: ["DONE"] }, dueDate: { lt: todayStart } },
   });
+  const timeline = buildSmartTimeline(todaysTasks, now);
   const tasksPercent = computeFocusScore({
     dueTodayCount: dueTodayTasks.length,
     completedTodayCount: completedTodayTasks,
@@ -125,12 +131,22 @@ async function getDashboardData(): Promise<{
   }
 
   const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
-  return { name, tasks, habitsPercent, financePercent, tasksPercent };
+  return { name, tasks, habitsPercent, financePercent, tasksPercent, timeline };
 }
 
+const timelineSections = [
+  { key: "current", label: "Current" },
+  { key: "next", label: "Next" },
+  { key: "later", label: "Later" },
+  { key: "completed", label: "Completed" },
+] as const;
+
 export default async function HomePage() {
-  const { name, tasks, habitsPercent, financePercent, tasksPercent } = await getDashboardData();
-  const today = new Date().toLocaleDateString(undefined, {
+  const { name, tasks, habitsPercent, financePercent, tasksPercent, timeline } = await getDashboardData();
+  // Brisbane's date, not the server's (Vercel functions run UTC) - keeps
+  // "today" in sync with the Smart Timeline's own Brisbane day boundary.
+  const today = new Date().toLocaleDateString("en-AU", {
+    timeZone: "Australia/Brisbane",
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -146,7 +162,7 @@ export default async function HomePage() {
           </CardTitle>
           <CardDescription className="flex flex-wrap items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-1.5">
-              <Clock className="size-3.5" /> {today}
+              <Clock className="size-3.5" /> {today}, <BrisbaneClock />
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Cloud className="size-3.5" /> 22°C, partly cloudy
@@ -217,48 +233,57 @@ export default async function HomePage() {
         <Card>
           <CardHeader>
             <CardTitle>Smart Timeline</CardTitle>
-            <CardDescription>Your day at a glance</CardDescription>
+            <CardDescription>Your day at a glance, Brisbane time</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {(
-              [
-                ["Current", timeline.current],
-                ["Next", timeline.next],
-                ["Later", timeline.later],
-                ["Completed", timeline.completed],
-              ] as const
-            ).map(([label, items]) => (
-              <div key={label}>
-                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                  {label}
+            {timeline === null && (
+              <p className="text-sm text-muted-foreground">
+                Sign in to see today&apos;s schedule.
+              </p>
+            )}
+            {timeline &&
+              Object.values(timeline).every((items) => items.length === 0) && (
+                <p className="text-sm text-muted-foreground">
+                  Nothing scheduled for today yet.
                 </p>
-                <div className="flex flex-col gap-1.5">
-                  {items.map((item) => (
-                    <div
-                      key={item.title}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      {label === "Completed" ? (
-                        <CheckCircle2 className="size-3.5 text-primary" />
-                      ) : (
-                        <span className="w-10 shrink-0 text-xs text-muted-foreground">
-                          {item.time}
-                        </span>
-                      )}
-                      <span
-                        className={
-                          label === "Completed"
-                            ? "text-muted-foreground line-through"
-                            : ""
-                        }
-                      >
-                        {item.title}
-                      </span>
+              )}
+            {timeline &&
+              timelineSections.map(({ key, label }) => {
+                const items = timeline[key];
+                if (items.length === 0) return null;
+                return (
+                  <div key={key}>
+                    <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                      {label}
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      {items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          {key === "completed" ? (
+                            <CheckCircle2 className="size-3.5 text-primary" />
+                          ) : (
+                            <span className="w-10 shrink-0 text-xs text-muted-foreground">
+                              {item.time}
+                            </span>
+                          )}
+                          <span
+                            className={
+                              key === "completed"
+                                ? "text-muted-foreground line-through"
+                                : ""
+                            }
+                          >
+                            {item.title}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+                  </div>
+                );
+              })}
           </CardContent>
         </Card>
       </div>

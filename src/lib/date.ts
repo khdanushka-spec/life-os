@@ -18,6 +18,26 @@ export function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+// The app is Brisbane-based (see lib/weather.ts) but server code (Vercel
+// serverless) runs in UTC, so a plain startOfDay() draws the "today"
+// boundary ~10h too early/late for a Brisbane user. Queensland never
+// observes daylight saving, so +10:00 is safe to hardcode rather than
+// doing full IANA-timezone arithmetic.
+const BRISBANE_UTC_OFFSET = "+10:00";
+
+export function brisbaneDateKey(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Brisbane",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+export function startOfBrisbaneDay(date: Date = new Date()): Date {
+  return new Date(`${brisbaneDateKey(date)}T00:00:00${BRISBANE_UTC_OFFSET}`);
+}
+
 // Recurrence math, originally written for Finance's RecurringPayment and
 // now shared with Tasks' repeatInterval - general enough to live here
 // rather than in a domain-specific lib.

@@ -128,6 +128,54 @@ export function completionsByDay(completedDates: Date[]): Map<string, number> {
   return map;
 }
 
+export type SmartTimelineItem = { id: string; time: string; title: string };
+export type SmartTimelineBuckets = {
+  current: SmartTimelineItem[];
+  next: SmartTimelineItem[];
+  later: SmartTimelineItem[];
+  completed: SmartTimelineItem[];
+};
+
+function formatBrisbaneClock(date: Date): string {
+  return date.toLocaleTimeString("en-AU", {
+    timeZone: "Australia/Brisbane",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+// Home page's "Smart Timeline" - plain deterministic bucketing against the
+// live clock, same "AI narrates, math computes" principle as the rest of
+// this file. Takes today's scheduled (dueDate-bearing) tasks and slots them
+// into Current (the most recent one at-or-before now), Next (the first one
+// still ahead), Later (everything after that), and Completed.
+export function buildSmartTimeline(
+  todaysTasks: { id: string; title: string; dueDate: Date | null; status: TaskStatus; completedAt: Date | null }[],
+  now: Date,
+): SmartTimelineBuckets {
+  const completed = todaysTasks
+    .filter((t) => t.status === "DONE" && t.completedAt)
+    .sort((a, b) => a.completedAt!.getTime() - b.completedAt!.getTime())
+    .map((t) => ({ id: t.id, time: formatBrisbaneClock(t.completedAt!), title: t.title }));
+
+  const scheduled = todaysTasks
+    .filter((t) => t.status !== "DONE" && t.dueDate)
+    .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
+    .map((t) => ({ id: t.id, time: formatBrisbaneClock(t.dueDate!), title: t.title, dueDate: t.dueDate! }));
+
+  const past = scheduled.filter((t) => t.dueDate <= now);
+  const future = scheduled.filter((t) => t.dueDate > now);
+
+  const current = past.length ? [past[past.length - 1]] : [];
+  const next = future.length ? [future[0]] : [];
+  const later = future.slice(1);
+
+  const strip = (items: typeof scheduled) => items.map(({ id, time, title }) => ({ id, time, title }));
+
+  return { current: strip(current), next: strip(next), later: strip(later), completed };
+}
+
 // The AI only ever fills in these narrative fields for a daily/weekly/
 // monthly review - every number is computed separately and merged in,
 // same "AI narrates, math computes" principle as Finance's reports.
