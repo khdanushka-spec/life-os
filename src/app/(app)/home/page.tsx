@@ -17,6 +17,7 @@ import { todayDateKey } from "@/lib/habits";
 import { greeting } from "@/lib/greeting";
 import { startOfMonth } from "@/lib/date";
 import { decToNumber } from "@/lib/finance";
+import { computeFocusScore, estimateWorkloadMinutes } from "@/lib/tasks";
 import type { Task } from "@/generated/prisma/client";
 
 const mockFocusItems = [
@@ -66,17 +67,37 @@ async function getDashboardData(): Promise<{
   tasks: Task[] | null;
   habitsPercent: number | null;
   financePercent: number | null;
+  tasksPercent: number | null;
 }> {
   if (!isSupabaseConfigured()) {
-    return { name: "there", tasks: null, habitsPercent: null, financePercent: null };
+    return { name: "there", tasks: null, habitsPercent: null, financePercent: null, tasksPercent: null };
   }
 
   const dbUser = await requireDbUser();
   const tasks = await prisma.task.findMany({
-    where: { userId: dbUser.id, status: "TODO" },
+    where: { userId: dbUser.id, status: { notIn: ["DONE", "SOMEDAY"] } },
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
     take: 3,
   });
+
+  const todayStart = new Date(new Date().toISOString().slice(0, 10));
+  const [dueTodayTasks, completedTodayTasks] = await Promise.all([
+    prisma.task.findMany({
+      where: { userId: dbUser.id, parentId: null, dueDate: { gte: todayStart, lt: new Date(todayStart.getTime() + 86_400_000) } },
+    }),
+    prisma.task.count({
+      where: { userId: dbUser.id, parentId: null, status: "DONE", completedAt: { gte: todayStart } },
+    }),
+  ]);
+  const overdueCount = await prisma.task.count({
+    where: { userId: dbUser.id, parentId: null, status: { notIn: ["DONE"] }, dueDate: { lt: todayStart } },
+  });
+  const tasksPercent = computeFocusScore({
+    dueTodayCount: dueTodayTasks.length,
+    completedTodayCount: completedTodayTasks,
+    overdueCount,
+    estimatedMinutesToday: estimateWorkloadMinutes(dueTodayTasks),
+  }).score;
 
   const habits = await prisma.habit.findMany({
     where: { userId: dbUser.id, archived: false },
@@ -104,11 +125,11 @@ async function getDashboardData(): Promise<{
   }
 
   const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
-  return { name, tasks, habitsPercent, financePercent };
+  return { name, tasks, habitsPercent, financePercent, tasksPercent };
 }
 
 export default async function HomePage() {
-  const { name, tasks, habitsPercent, financePercent } = await getDashboardData();
+  const { name, tasks, habitsPercent, financePercent, tasksPercent } = await getDashboardData();
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -251,6 +272,7 @@ export default async function HomePage() {
         <CardContent className="flex flex-wrap justify-around gap-6">
           {momentum.map((m) => {
             let value = m.value;
+            if (m.label === "Tasks" && tasksPercent !== null) value = tasksPercent;
             if (m.label === "Habits" && habitsPercent !== null) value = habitsPercent;
             if (m.label === "Finance" && financePercent !== null) value = financePercent;
             return <CircularProgress key={m.label} value={value} label={m.label} />;

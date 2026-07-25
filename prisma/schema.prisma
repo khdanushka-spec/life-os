@@ -26,32 +26,37 @@ enum UserRole {
 // Every future life-area model (tasks, habits, journal, finance, ...)
 // hangs off this via userId, regardless of which path a user came from.
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String?   @unique
-  username     String?   @unique
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String?  @unique
+  username     String?  @unique
   passwordHash String?
-  role         UserRole  @default(USER)
+  role         UserRole @default(USER)
   name         String?
-  timezone     String    @default("UTC")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  timezone     String   @default("UTC")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  tasks               Task[]
-  habits              Habit[]
-  journalEntries      JournalEntry[]
-  journalAiCaches     JournalAiCache[]
-  journalReports      JournalReport[]
-  financialAccounts   FinancialAccount[]
-  transactions        Transaction[]
-  recurringPayments   RecurringPayment[]
-  budgets             Budget[]
-  savingsGoals        SavingsGoal[]
-  investments         Investment[]
-  assetsLiabilities   AssetLiability[]
-  netWorthSnapshots   NetWorthSnapshot[]
-  financialAiCaches   FinancialAiCache[]
-  financialReports    FinancialReport[]
-  sessions            Session[]
+  tasks             Task[]
+  projects          Project[]
+  comments          Comment[]
+  quickNote         QuickNote?
+  taskAiCaches      TaskAiCache[]
+  taskReports       TaskReport[]
+  habits            Habit[]
+  journalEntries    JournalEntry[]
+  journalAiCaches   JournalAiCache[]
+  journalReports    JournalReport[]
+  financialAccounts FinancialAccount[]
+  transactions      Transaction[]
+  recurringPayments RecurringPayment[]
+  budgets           Budget[]
+  savingsGoals      SavingsGoal[]
+  investments       Investment[]
+  assetsLiabilities AssetLiability[]
+  netWorthSnapshots NetWorthSnapshot[]
+  financialAiCaches FinancialAiCache[]
+  financialReports  FinancialReport[]
+  sessions          Session[]
 }
 
 // DB-backed sessions for locally-authenticated admin users. id stores a
@@ -69,21 +74,136 @@ model Session {
 
 enum TaskStatus {
   TODO
+  IN_PROGRESS
+  WAITING
+  SOMEDAY
   DONE
 }
 
+enum Priority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  SOMEDAY_PRIORITY
+}
+
+enum EnergyLevel {
+  VERY_LOW
+  LOW
+  MEDIUM
+  HIGH
+  DEEP_FOCUS
+}
+
+model Project {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks Task[]
+
+  @@index([userId, archived])
+}
+
+// descriptionJson/descriptionText mirror JournalEntry's contentJson/
+// contentText pattern - same TipTap doc + plain-text-mirror editor,
+// reused directly from the Journal module.
+// parentId/subtasks IS the checklist system - no separate model.
+// progressPercent is only used when a task has no subtasks; with
+// subtasks, progress is always computed from their completion, never
+// stored (avoids the two ever disagreeing).
 model Task {
-  id          String     @id @default(uuid()) @db.Uuid
-  userId      String     @db.Uuid
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String
-  status      TaskStatus @default(TODO)
-  dueDate     DateTime?
-  completedAt DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id                  String             @id @default(uuid()) @db.Uuid
+  userId              String             @db.Uuid
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title               String
+  descriptionJson     Json?
+  descriptionText     String             @default("")
+  status              TaskStatus         @default(TODO)
+  priority            Priority           @default(MEDIUM)
+  energy              EnergyLevel?
+  dueDate             DateTime?
+  reminderAt          DateTime?
+  estimatedMinutes    Int?
+  actualMinutes       Int?
+  repeatInterval      RecurringInterval?
+  projectId           String?            @db.Uuid
+  project             Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  parentId            String?            @db.Uuid
+  parent              Task?              @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks            Task[]             @relation("TaskSubtasks")
+  progressPercent     Int?
+  tags                String[]           @default([])
+  pinned              Boolean            @default(false)
+  archived            Boolean            @default(false)
+  // Set by the per-task AI actions so a "suggested" badge can render
+  // without recomputing - never applied automatically.
+  aiSuggestedPriority Priority?
+  aiSuggestedEnergy   EnergyLevel?
+  completedAt         DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  comments Comment[]
 
   @@index([userId, status])
+  @@index([userId, dueDate])
+  @@index([parentId])
+}
+
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @db.Uuid
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+// The right sidebar's scratchpad - one per user (upsert), not a list.
+model QuickNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
+// Same shape and purpose as JournalAiCache/FinancialAiCache: caches the
+// AI daily insight / suggested-next-task once per day.
+model TaskAiCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  kind      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, kind])
+}
+
+// User-triggered daily/weekly/monthly review, same pattern as
+// JournalReport/FinancialReport.
+model TaskReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
 }
 
 model Habit {
@@ -343,15 +463,15 @@ enum AssetLiabilityKind {
 // Catch-all for anything not already a FinancialAccount or Investment
 // (a car, jewelry, a personal loan not modeled as an account).
 model AssetLiability {
-  id        String              @id @default(uuid()) @db.Uuid
-  userId    String              @db.Uuid
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String             @db.Uuid
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind      AssetLiabilityKind
   name      String
   category  String
-  value     Decimal             @db.Decimal(14, 2)
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  value     Decimal            @db.Decimal(14, 2)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   @@index([userId, kind])
 }

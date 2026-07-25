@@ -6,6 +6,7 @@ import { todayDateKey } from "@/lib/habits";
 import { moodMeta } from "@/lib/journal";
 import { startOfMonth } from "@/lib/date";
 import { computeNetWorth, decToNumber, formatCurrency, occurrencesInRange } from "@/lib/finance";
+import { PRIORITY_META } from "@/lib/tasks";
 
 export async function POST(req: Request) {
   const dbUser = await getDbUser();
@@ -22,14 +23,28 @@ export async function POST(req: Request) {
   }
 
   const tasks = await prisma.task.findMany({
-    where: { userId: dbUser.id, status: "TODO" },
+    where: { userId: dbUser.id, parentId: null, status: { notIn: ["DONE"] } },
+    include: { project: true },
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
     take: 20,
   });
 
+  const nowForTasks = new Date();
   const taskSummary = tasks.length
     ? tasks
-        .map((t) => `- ${t.title}${t.dueDate ? ` (due ${t.dueDate.toDateString()})` : ""}`)
+        .map((t) => {
+          const bits = [
+            `[${PRIORITY_META[t.priority].label}]`,
+            t.dueDate
+              ? `due ${t.dueDate.toDateString()}${t.dueDate < nowForTasks ? " (overdue)" : ""}`
+              : "no due date",
+            t.project ? `project: ${t.project.name}` : null,
+            t.energy ? `energy: ${t.energy}` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          return `- ${t.title} - ${bits}`;
+        })
         .join("\n")
     : "No pending tasks right now.";
 

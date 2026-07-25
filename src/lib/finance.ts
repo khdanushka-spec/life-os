@@ -180,57 +180,11 @@ export function computeHealthScore(input: {
   };
 }
 
-// Advances a date by one occurrence of the given interval using calendar
-// arithmetic (setMonth/setFullYear) for MONTHLY/QUARTERLY/YEARLY so a
-// "due on the 1st" bill stays on the 1st indefinitely, rather than
-// drifting the way a fixed day-count step would across months of
-// different lengths. WEEKLY/FORTNIGHTLY are exact day counts already.
-export function advanceByInterval(date: Date, interval: RecurringInterval): Date {
-  const next = new Date(date);
-  switch (interval) {
-    case "WEEKLY":
-      next.setDate(next.getDate() + 7);
-      break;
-    case "FORTNIGHTLY":
-      next.setDate(next.getDate() + 14);
-      break;
-    case "MONTHLY":
-      next.setMonth(next.getMonth() + 1);
-      break;
-    case "QUARTERLY":
-      next.setMonth(next.getMonth() + 3);
-      break;
-    case "YEARLY":
-      next.setFullYear(next.getFullYear() + 1);
-      break;
-  }
-  return next;
-}
-
-// All occurrences of a recurring item landing in [rangeStart, rangeEnd),
-// walking forward from nextDueDate (which may be before, inside, or
-// after the range). Used by the financial calendar.
-export function occurrencesInRange(
-  nextDueDate: Date,
-  interval: RecurringInterval,
-  rangeStart: Date,
-  rangeEnd: Date,
-): Date[] {
-  const occurrences: Date[] = [];
-  let cursor = new Date(nextDueDate);
-  // Guard against a pathological loop if something is misconfigured.
-  let iterations = 0;
-  while (cursor < rangeStart && iterations < 1000) {
-    cursor = advanceByInterval(cursor, interval);
-    iterations++;
-  }
-  while (cursor < rangeEnd && iterations < 2000) {
-    if (cursor >= rangeStart) occurrences.push(new Date(cursor));
-    cursor = advanceByInterval(cursor, interval);
-    iterations++;
-  }
-  return occurrences;
-}
+// Recurrence math now lives in lib/date.ts (shared with Tasks'
+// repeatInterval) - re-exported here so nothing else in this module
+// needs to change.
+export { advanceByInterval, occurrencesInRange } from "@/lib/date";
+import { occurrencesInRange } from "@/lib/date";
 
 export type CashFlowProjection = {
   days: number;
