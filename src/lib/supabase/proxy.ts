@@ -1,17 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 // Refreshes the Supabase auth session on every request. Called from the
 // root proxy.ts (Next.js 16 renamed "Middleware" to "Proxy").
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  // Supabase isn't configured yet (no project created) — pass through
-  // instead of crashing every request.
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  // Supabase isn't configured (or the URL is a placeholder) — pass
+  // through instead of crashing every request.
+  if (!isSupabaseConfigured()) {
     return response;
   }
 
