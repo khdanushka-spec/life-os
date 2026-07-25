@@ -14,8 +14,8 @@ Working through a phase plan (see `README.md` "Phase plan" section for the autho
 - Phase 3: AI Brain chat (`/ai`) — multi-provider resolver (Ollama → Anthropic → OpenAI), Anthropic confirmed working in production (badge shows "Claude"), Ollama verified locally with `llama3.2:3b` (~14s response time; `qwen3:8b` also installed but 12+ min per response on this CPU-only machine — kept as opt-in via `OLLAMA_MODEL` env var)
 - Critical bug fixed in `934b744`: `User` row resolution crashed `/home`, `/tasks`, `/api/chat` for real (non-test) users due to a race condition + email-uniqueness bug in the upsert logic — confirmed fixed via clean runtime logs after the user retested
 
-**Uncommitted, code-complete, NOT YET VERIFIED (this is where the session was cut off):**
-- **Habits module** — schema already pushed to the live Supabase DB via `npx prisma db push` (so the DB itself is up to date), but the application code is only on disk, not committed:
+**Committed and deployed (commit `c7c73a2`, production `Ready` as of this update), NOT YET USER-VERIFIED end-to-end:**
+- **Habits module** — schema already pushed to the live Supabase DB via `npx prisma db push` (so the DB itself is up to date). Application code is now committed and deployed:
   - `prisma/schema.prisma` — added `Habit` and `HabitLog` models (diff not yet committed)
   - `src/lib/habits.ts` — new, streak calculation helper
   - `src/server/actions/habits.ts` — new, create/toggle-today/delete server actions
@@ -27,7 +27,7 @@ Working through a phase plan (see `README.md` "Phase plan" section for the autho
   - `src/app/(app)/home/page.tsx` — modified, Daily Momentum's "Habits" ring now pulls real today's-completion-% instead of mock value
   - `src/app/api/chat/route.ts` — modified, system prompt now includes today's habit status alongside tasks
 
-  **`npm run build` passed cleanly** (verified before the interruption — all routes compile, `/habits` is static as expected). **`npm run lint` was interrupted by the user mid-run and never completed** — that's the literal last thing that happened before this handover was requested. Nothing has been committed, pushed, or deployed for Habits yet.
+  **`npm run lint` completed and found one real error**: `Date.now()` called inline during render in `src/app/(app)/habits/page.tsx` tripped the `react-hooks/purity` rule. Fixed by moving it into a new `habitLogCutoffDate()` helper in `src/lib/habits.ts` (mirrors the existing `todayDateKey()` pattern — impure `Date` calls are fine in plain lib functions, just not written inline in a Server Component body). Lint and `npm run build` both clean after the fix. Committed as `c7c73a2`, pushed to `main`, deployed — production alias `life-os-k9g4.vercel.app` confirmed pointing at the new `Ready` deployment, `/habits` correctly redirects to `/login` when unauthenticated (no crash). **Not yet tested authenticated** — that needs the user's real Supabase session.
 
 ## Key decisions
 
@@ -63,7 +63,7 @@ Too many to list individually — see `git log --oneline` for the commit-by-comm
 
 ## Next steps
 
-1. **Finish what was interrupted**: run `cd /c/Users/dnand/aura-os && npm run lint` for the Habits module. If clean, `git add -A`, commit (there's a clear diff to describe: Habit/HabitLog schema, CRUD, nav entry, Daily Momentum wiring, AI Brain context), `git push`, then poll Vercel (`npx vercel ls --scope dkns`) until the deployment is Ready.
+1. ~~Finish what was interrupted~~ — done: lint fixed, committed (`c7c73a2`), pushed, deployed, production confirmed `Ready`.
 2. **Verify Habits end-to-end** — ideally have the user retest in their own browser (their real Supabase account is the only way to test authenticated flows now; my browser tool has no working login). Ask them to: add a habit, check it off, confirm the streak badge appears, confirm the Daily Momentum "Habits" ring updates, and confirm the AI Brain now mentions habit status when asked.
 3. **Ask the user which life area is next** — Phase 4 still has Journal, Finance, Health, Family, Travel, Learning outstanding. Habits itself wasn't in the original vision doc's life-area list; it was picked because it plugged directly into the existing (mock) Daily Momentum widget — Journal was the other strong candidate (central to vision doc's "Personal" section, pairs naturally with AI Brain for reflection prompts).
 4. Lower priority, mentioned but not actioned: delete the duplicate empty `life-os` Vercel project; consider Supabase custom SMTP; consider cleaning up the unconfirmed mailinator test accounts.
