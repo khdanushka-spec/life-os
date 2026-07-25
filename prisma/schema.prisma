@@ -36,9 +36,10 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tasks    Task[]
-  habits   Habit[]
-  sessions Session[]
+  tasks          Task[]
+  habits         Habit[]
+  journalEntries JournalEntry[]
+  sessions       Session[]
 }
 
 // DB-backed sessions for locally-authenticated admin users. id stores a
@@ -98,4 +99,24 @@ model HabitLog {
   createdAt DateTime @default(now())
 
   @@unique([habitId, date])
+}
+
+enum Mood {
+  GREAT
+  GOOD
+  OKAY
+  LOW
+  ROUGH
+}
+
+model JournalEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  mood      Mood?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }

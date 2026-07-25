@@ -84,8 +84,11 @@ docs/
 - **Phase 1 (done)** — Auth (login/signup/logout via Supabase), protected app shell (sidebar, mobile nav, user menu, dark/light mode), Home Dashboard with mock data (Morning Briefing, Today's Focus, Smart Timeline, Daily Momentum, AI Suggestions), loading/error states.
 - **Phase 2 (done)** — Tasks module (data model + CRUD UI), Home Dashboard's Today's Focus wired to real task data.
 - **Phase 3.0 (done)** — Super Admin authentication: local username/password auth, Argon2 hashing, DB-backed sessions, role-based authorization, seed script. See [Authentication](#authentication).
-- **Phase 3 (in progress)** — AI Brain: chat interface backed by the AI SDK, retrieval over stored data, natural-language search.
-- **Phase 4** — Remaining life areas (Health, Finance, Learning, Family, Travel, Journal) one at a time, each following the same data model + UI + AI pattern.
+- **Phase 3 (done)** — AI Brain: chat interface backed by the AI SDK (multi-provider: Ollama → Anthropic → OpenAI), context-aware over tasks, habits, and journal entries.
+- **Phase 4 (in progress)** — Life areas, one at a time, each following the same data model + UI + AI pattern:
+  - Habits (done) — CRUD, streaks, daily toggle, wired into Daily Momentum and AI Brain.
+  - Journal (done) — entries with optional mood, wired into AI Brain.
+  - Remaining: Health, Finance, Learning, Family, Travel.
 - **Phase 5** — Knowledge Vault (file storage, OCR, search indexing), Smart Automation rules engine.
 - **Phase 6** — PWA/offline support, mobile polish (widgets, quick actions, camera scanning), desktop polish (keyboard shortcuts, multi-window).
 
