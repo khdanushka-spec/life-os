@@ -3,14 +3,15 @@
 import { useState, type FormEvent } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Send, Sparkles } from "lucide-react";
+import { Send, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 
 export function ChatPanel() {
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
 
@@ -53,6 +54,12 @@ export function ChatPanel() {
             <Sparkles className="size-3.5 animate-pulse" />
             Thinking...
           </div>
+        )}
+        {error && (
+          <Alert variant="destructive">
+            <TriangleAlert />
+            <AlertDescription>{error.message}</AlertDescription>
+          </Alert>
         )}
       </div>
 

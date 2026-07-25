@@ -1,22 +1,20 @@
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
-import { getAiProvider } from "@/lib/ai/config";
+import { resolveAiModel } from "@/lib/ai/providers";
 import { getDbUser } from "@/server/db-user";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
-  const provider = getAiProvider();
-  if (!provider) {
-    return new Response(
-      "AI isn't configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.",
-      { status: 503 },
-    );
-  }
-
   const dbUser = await getDbUser();
   if (!dbUser) {
     return new Response("Unauthorized", { status: 401 });
+  }
+
+  const resolved = await resolveAiModel();
+  if (!resolved) {
+    return new Response(
+      "No AI provider available. Start Ollama (localhost:11434), or set ANTHROPIC_API_KEY or OPENAI_API_KEY.",
+      { status: 503 },
+    );
   }
 
   const tasks = await prisma.task.findMany({
@@ -40,11 +38,8 @@ ${taskSummary}`;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 
-  const model =
-    provider === "anthropic" ? anthropic("claude-sonnet-5") : openai("gpt-4o");
-
   const result = streamText({
-    model,
+    model: resolved.model,
     system,
     messages: await convertToModelMessages(messages),
   });
