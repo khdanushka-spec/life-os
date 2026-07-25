@@ -1,12 +1,15 @@
 import { LiveClock } from "@/components/live-clock";
 import { moodMeta } from "@/lib/journal";
+import { brisbaneToday } from "@/lib/date";
 import type { Weather } from "@/lib/weather";
 import type { Mood } from "@/generated/prisma/client";
 
+// Both computed off Brisbane's calendar day, not the server's UTC clock -
+// see lib/date.ts for why a plain date.getFullYear()/getDate() is wrong here.
 function dayOfYear(date: Date): number {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  return Math.floor(diff / 86_400_000);
+  const key = brisbaneToday(date);
+  const start = new Date(Date.UTC(key.getUTCFullYear(), 0, 0));
+  return Math.floor((key.getTime() - start.getTime()) / 86_400_000);
 }
 
 export function JournalHeader({
@@ -31,7 +34,13 @@ export function JournalHeader({
         </h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span>
-            {now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            {now.toLocaleDateString("en-AU", {
+              timeZone: "Australia/Brisbane",
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
           </span>
           <span>·</span>
           <LiveClock />

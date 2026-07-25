@@ -49,6 +49,19 @@ export function startOfBrisbaneDay(date: Date = new Date()): Date {
   return new Date(`${brisbaneDateKey(date)}T00:00:00${BRISBANE_UTC_OFFSET}`);
 }
 
+// Brisbane's current hour (0-23), for time-of-day logic like greeting text.
+// Server code runs in UTC, so a plain date.getHours() is up to 10h off.
+export function brisbaneHour(date: Date = new Date()): number {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Brisbane",
+      hour: "numeric",
+      hour12: false,
+    }).format(date),
+  );
+  return hour % 24; // some ICU implementations format midnight as "24"
+}
+
 // For @db.Date columns (HabitLog.date, the AI-cache "date" columns, etc.)
 // and for date-key equality checks - NOT the same value as
 // startOfBrisbaneDay(). This returns a Date whose *UTC* calendar-day

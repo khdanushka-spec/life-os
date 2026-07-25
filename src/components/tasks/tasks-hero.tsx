@@ -39,7 +39,12 @@ export function TasksHero({
             {greeting()}, {name}.
           </h1>
           <p className="text-sm text-muted-foreground">
-            {today.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+            {today.toLocaleDateString("en-AU", {
+              timeZone: "Australia/Brisbane",
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">

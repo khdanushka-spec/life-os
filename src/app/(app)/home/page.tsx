@@ -15,7 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { todayDateKey } from "@/lib/habits";
 import { greeting } from "@/lib/greeting";
-import { startOfMonth, startOfBrisbaneDay } from "@/lib/date";
+import { startOfMonth, startOfBrisbaneDay, brisbaneDateKey } from "@/lib/date";
 import { decToNumber } from "@/lib/finance";
 import { computeFocusScore, estimateWorkloadMinutes, buildSmartTimeline, type SmartTimelineBuckets } from "@/lib/tasks";
 import { BrisbaneClock } from "@/components/brisbane-clock";
@@ -29,14 +29,13 @@ const mockFocusItems = [
 
 function formatDue(date: Date) {
   const d = new Date(date);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  const key = brisbaneDateKey(d);
+  const todayKey = brisbaneDateKey();
+  const tomorrowKey = brisbaneDateKey(new Date(Date.now() + 86_400_000));
 
-  if (sameDay(d, today)) return "Today";
-  if (sameDay(d, tomorrow)) return "Tomorrow";
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (key === todayKey) return "Today";
+  if (key === tomorrowKey) return "Tomorrow";
+  return d.toLocaleDateString("en-AU", { timeZone: "Australia/Brisbane", month: "short", day: "numeric" });
 }
 
 const momentum = [
