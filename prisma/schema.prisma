@@ -36,10 +36,12 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tasks          Task[]
-  habits         Habit[]
-  journalEntries JournalEntry[]
-  sessions       Session[]
+  tasks            Task[]
+  habits           Habit[]
+  journalEntries   JournalEntry[]
+  journalAiCaches  JournalAiCache[]
+  journalReports   JournalReport[]
+  sessions         Session[]
 }
 
 // DB-backed sessions for locally-authenticated admin users. id stores a
@@ -102,21 +104,73 @@ model HabitLog {
 }
 
 enum Mood {
-  GREAT
-  GOOD
-  OKAY
-  LOW
-  ROUGH
+  AMAZING
+  HAPPY
+  CALM
+  NEUTRAL
+  SAD
+  FRUSTRATED
+  TIRED
+  STRESSED
 }
 
+// contentJson is the TipTap document (source of truth for the editor);
+// contentText is a plain-text mirror computed client-side via
+// editor.getText(), used for search, word counts, and AI context so we
+// never have to walk the TipTap JSON tree server-side.
 model JournalEntry {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentJson     Json?
+  contentText     String   @default("")
+  mood            Mood?
+  energyMorning   Int?
+  energyAfternoon Int?
+  energyEvening   Int?
+  gratitude       String[] @default([])
+  tags            String[] @default([])
+  // Best-effort seconds the editor had focus while this entry was being
+  // written (accumulated client-side, flushed on save) - not a fake
+  // words-per-minute estimate.
+  writingSeconds  Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+// Caches AI-generated content that's shown passively on every page load
+// (Today Card's reflection, the Insights card) so they regenerate at most
+// once per calendar day instead of on every request.
+model JournalAiCache {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  content   String
-  mood      Mood?
+  date      DateTime @db.Date
+  kind      String
+  content   Json
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  @@index([userId, createdAt])
+  @@unique([userId, date, kind])
+}
+
+enum ReportPeriod {
+  WEEK
+  MONTH
+}
+
+// User-triggered (no scheduler in this app) weekly/monthly AI reflection.
+// summary shape is enforced by a Zod schema at the call site, not by
+// individual columns, so the AI output can evolve without a migration.
+model JournalReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
 }

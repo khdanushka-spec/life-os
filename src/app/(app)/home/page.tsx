@@ -14,6 +14,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { todayDateKey } from "@/lib/habits";
+import { greeting } from "@/lib/greeting";
 import type { Task } from "@/generated/prisma/client";
 
 const mockFocusItems = [
@@ -57,13 +58,6 @@ const suggestions = [
   "You've skipped exercise for two days — a short walk could help.",
   "You usually review finances on Fridays.",
 ];
-
-function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
 
 async function getDashboardData(): Promise<{
   name: string;

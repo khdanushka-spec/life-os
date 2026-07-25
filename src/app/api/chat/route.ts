@@ -50,8 +50,11 @@ export async function POST(req: Request) {
     ? journalEntries
         .map((e) => {
           const mood = moodMeta(e.mood);
-          const preview = e.content.length > 200 ? `${e.content.slice(0, 200)}...` : e.content;
-          return `- ${e.createdAt.toDateString()}${mood ? ` (feeling ${mood.label.toLowerCase()})` : ""}: ${preview}`;
+          const preview =
+            e.contentText.length > 200 ? `${e.contentText.slice(0, 200)}...` : e.contentText;
+          const tags = e.tags.length ? ` [${e.tags.join(", ")}]` : "";
+          const gratitude = e.gratitude.length ? ` Grateful for: ${e.gratitude.join("; ")}.` : "";
+          return `- ${e.createdAt.toDateString()}${mood ? ` (feeling ${mood.label.toLowerCase()})` : ""}${tags}: ${preview || "(no text)"}${gratitude}`;
         })
         .join("\n")
     : "No journal entries yet.";
