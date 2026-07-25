@@ -67,7 +67,7 @@ export function ChatPanel() {
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Message AI Brain..."
+          placeholder="Message Aura Brain..."
           disabled={busy}
         />
         <Button type="submit" size="icon" disabled={busy || !input.trim()}>

@@ -19,7 +19,7 @@ function isUniqueConstraintError(error: unknown): boolean {
 //   a different id (e.g. the Supabase auth UID for this email changed),
 //   upsert-by-id would try to INSERT a second row and hit the email unique
 //   constraint instead of finding the existing one.
-// - Next.js can fire several page loads concurrently (Home/Tasks/AI Brain
+// - Next.js can fire several page loads concurrently (Home/Tasks/Aura Brain
 //   all requesting at once on first login, as actually happened), so two
 //   requests can both decide "no row exists yet" and race to create one.
 async function resolveDbUserFromSession(): Promise<User | null> {

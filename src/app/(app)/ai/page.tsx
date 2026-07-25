@@ -24,7 +24,7 @@ export default async function AiPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" />
-            AI Brain
+            Aura Brain
             {resolved && (
               <Badge variant="secondary" className="font-normal">
                 {resolved.label}
@@ -45,7 +45,7 @@ export default async function AiPage() {
               <AlertTitle>No AI provider available</AlertTitle>
               <AlertDescription>
                 Start Ollama locally (localhost:11434), or set
-                ANTHROPIC_API_KEY or OPENAI_API_KEY to enable the AI Brain.
+                ANTHROPIC_API_KEY or OPENAI_API_KEY to enable Aura Brain.
               </AlertDescription>
             </Alert>
           )}
