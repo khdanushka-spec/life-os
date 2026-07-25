@@ -15,7 +15,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-export function Topbar({ user }: { user: User | null }) {
+export function Topbar({ user, nickname }: { user: User | null; nickname: string | null }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -40,7 +40,7 @@ export function Topbar({ user }: { user: User | null }) {
 
       <div className="flex-1" />
       <ThemeToggle />
-      <UserMenu initialUser={user} />
+      <UserMenu initialUser={user} nickname={nickname} />
     </header>
   );
 }
