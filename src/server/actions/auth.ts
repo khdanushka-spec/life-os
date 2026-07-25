@@ -84,3 +84,36 @@ export async function signOutAction() {
   await supabase.auth.signOut();
   redirect("/login");
 }
+
+const passwordSchema = z
+  .object({
+    password: z.string().min(8, "Password must be at least 8 characters."),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match.",
+    path: ["confirmPassword"],
+  });
+
+// Relies on the current session cookie (no re-entering the current
+// password) - same trust level Supabase's own updateUser API assumes.
+export async function changePasswordAction(
+  _prevState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  if (!isSupabaseConfigured()) return { error: NOT_CONFIGURED_ERROR };
+
+  const parsed = passwordSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) return { error: error.message };
+
+  return { success: "Password updated." };
+}
