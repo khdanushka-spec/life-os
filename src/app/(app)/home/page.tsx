@@ -77,7 +77,8 @@ async function getDashboardData(): Promise<{
     take: 3,
   });
 
-  return { name: dbUser.email.split("@")[0], tasks };
+  const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
+  return { name, tasks };
 }
 
 export default async function HomePage() {

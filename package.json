@@ -12,7 +12,9 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.20",
     "@ai-sdk/openai": "^4.0.20",
+    "@ai-sdk/react": "^4.0.40",
     "@base-ui/react": "^1.6.0",
+    "@node-rs/argon2": "^2.0.2",
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
     "@supabase/ssr": "^0.12.3",
@@ -44,12 +46,14 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   },
   "allowScripts": {
     "@prisma/engines@7.9.0": true,
     "prisma@7.9.0": true,
     "sharp@0.34.5": true,
-    "unrs-resolver@1.12.2": true
+    "unrs-resolver@1.12.2": true,
+    "esbuild@0.28.1": true
   }
 }

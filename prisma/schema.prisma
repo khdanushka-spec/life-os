@@ -12,18 +12,45 @@ datasource db {
   provider = "postgresql"
 }
 
-// Mirrors Supabase's auth.users row (id is the Supabase auth UID).
-// Every future life-area model (tasks, habits, journal, finance, ...)
-// will hang off this via userId.
-model User {
-  id        String   @id @db.Uuid
-  email     String   @unique
-  name      String?
-  timezone  String   @default("UTC")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  USER
+}
 
-  tasks Task[]
+// Two auth paths land in the same table:
+// - Supabase-authenticated regular users: id is the Supabase auth UID,
+//   email is set, username/passwordHash are null.
+// - Locally-authenticated admins (Super Admin, future Admins): id is a
+//   generated UUID, username/passwordHash are set, email is optional.
+// Every future life-area model (tasks, habits, journal, finance, ...)
+// hangs off this via userId, regardless of which path a user came from.
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String?   @unique
+  username     String?   @unique
+  passwordHash String?
+  role         UserRole  @default(USER)
+  name         String?
+  timezone     String    @default("UTC")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tasks    Task[]
+  sessions Session[]
+}
+
+// DB-backed sessions for locally-authenticated admin users. id stores a
+// SHA-256 hash of the session token — the raw token only ever lives in
+// the httpOnly cookie, so a DB read alone can't be replayed as a session.
+model Session {
+  id        String   @id
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 enum TaskStatus {

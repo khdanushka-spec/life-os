@@ -1,7 +1,11 @@
 import type { NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
+import { checkAdminSession } from "@/lib/auth/proxy";
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+  const adminRedirect = checkAdminSession(request);
+  if (adminRedirect) return adminRedirect;
+
   return updateSession(request);
 }
 
