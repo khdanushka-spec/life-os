@@ -1,0 +1,25 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Mirrors Supabase's auth.users row (id is the Supabase auth UID).
+// Every future life-area model (tasks, habits, journal, finance, ...)
+// will hang off this via userId.
+model User {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  name      String?
+  timezone  String   @default("UTC")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
