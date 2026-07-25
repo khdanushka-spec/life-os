@@ -22,7 +22,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { title: "Home", href: "/home", icon: Home },
   { title: "Tasks", href: "/tasks", icon: ListChecks },
-  { title: "AI Brain", href: "/ai", icon: Sparkles, disabled: true },
+  { title: "AI Brain", href: "/ai", icon: Sparkles },
   { title: "Work", href: "/work", icon: Briefcase, disabled: true },
   { title: "Health", href: "/health", icon: HeartPulse, disabled: true },
   { title: "Finance", href: "/finance", icon: Wallet, disabled: true },
