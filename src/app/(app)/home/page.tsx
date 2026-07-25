@@ -1,4 +1,4 @@
-import type { User } from "@supabase/supabase-js";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -7,16 +7,31 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { CircularProgress } from "@/components/circular-progress";
 import { Sparkles, Cloud, Clock, CheckCircle2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { prisma } from "@/lib/prisma";
+import { requireDbUser } from "@/server/db-user";
+import type { Task } from "@/generated/prisma/client";
 
-const focusItems = [
+const mockFocusItems = [
   { title: "Finish AURA OS Phase 1 auth flow", due: "Today" },
   { title: "Review Q3 budget draft", due: "Tomorrow" },
   { title: "Reply to Sarah re: project timeline", due: "Today" },
 ];
+
+function formatDue(date: Date) {
+  const d = new Date(date);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+
+  if (sameDay(d, today)) return "Today";
+  if (sameDay(d, tomorrow)) return "Tomorrow";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 const timeline = {
   current: [{ time: "10:00", title: "Deep work: Phase 1 build" }],
@@ -49,17 +64,24 @@ function greeting() {
   return "Good evening";
 }
 
-async function getDisplayName(): Promise<string> {
-  if (!isSupabaseConfigured()) return "there";
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return (user as User | null)?.email?.split("@")[0] ?? "there";
+async function getDashboardData(): Promise<{
+  name: string;
+  tasks: Task[] | null;
+}> {
+  if (!isSupabaseConfigured()) return { name: "there", tasks: null };
+
+  const dbUser = await requireDbUser();
+  const tasks = await prisma.task.findMany({
+    where: { userId: dbUser.id, status: "TODO" },
+    orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+    take: 3,
+  });
+
+  return { name: dbUser.email.split("@")[0], tasks };
 }
 
 export default async function HomePage() {
-  const name = await getDisplayName();
+  const { name, tasks } = await getDashboardData();
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -103,15 +125,43 @@ export default async function HomePage() {
             <CardDescription>Top priorities and deadlines</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            {focusItems.map((item) => (
+            {tasks === null &&
+              mockFocusItems.map((item) => (
+                <div
+                  key={item.title}
+                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                >
+                  <span className="text-sm">{item.title}</span>
+                  <Badge variant="secondary">{item.due}</Badge>
+                </div>
+              ))}
+            {tasks?.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nothing urgent — you&apos;re all caught up.
+              </p>
+            )}
+            {tasks?.map((task) => (
               <div
-                key={item.title}
+                key={task.id}
                 className="flex items-center justify-between gap-3 rounded-lg border p-3"
               >
-                <span className="text-sm">{item.title}</span>
-                <Badge variant="secondary">{item.due}</Badge>
+                <span className="text-sm">{task.title}</span>
+                {task.dueDate && (
+                  <Badge variant="secondary">{formatDue(task.dueDate)}</Badge>
+                )}
               </div>
             ))}
+            {tasks !== null && (
+              <Link
+                href="/tasks"
+                className={buttonVariants({
+                  variant: "link",
+                  className: "h-auto self-start p-0",
+                })}
+              >
+                View all tasks
+              </Link>
+            )}
           </CardContent>
         </Card>
 
