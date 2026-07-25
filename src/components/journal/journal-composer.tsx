@@ -8,7 +8,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TableKit } from "@tiptap/extension-table/kit";
 import { Placeholder } from "@tiptap/extension-placeholder";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Loader2, X, AlertCircle } from "lucide-react";
 import { JournalEditor } from "@/components/journal/journal-editor";
 import { MoodPicker } from "@/components/journal/mood-picker";
 import { EnergySlider, type EnergyValues } from "@/components/journal/energy-slider";
@@ -16,6 +16,7 @@ import { GratitudeInputs } from "@/components/journal/gratitude-inputs";
 import { DailyPrompts } from "@/components/journal/daily-prompts";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { saveDraftEntryAction } from "@/server/actions/journal";
 import { TAG_SUGGESTIONS } from "@/lib/journal";
 import type { JournalEntry, Mood } from "@/generated/prisma/client";
@@ -40,7 +41,7 @@ export function JournalComposer({
   const [gratitude, setGratitude] = useState<string[]>(initialEntry?.gratitude ?? []);
   const [tags, setTags] = useState<string[]>(initialEntry?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const accumulatedSeconds = useRef(0);
   const focusStart = useRef<number | null>(null);
@@ -90,30 +91,52 @@ export function JournalComposer({
 
   async function doSave() {
     if (!editor) return;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
     const contentText = editor.getText();
-    if (contentText.trim().length === 0 && !entryId) {
+    const { mood, energy, gratitude, tags } = latestRef.current;
+    const hasAnyContent =
+      contentText.trim().length > 0 ||
+      mood != null ||
+      energy.morning != null ||
+      energy.afternoon != null ||
+      energy.evening != null ||
+      gratitude.some((g) => g.trim().length > 0) ||
+      tags.length > 0;
+    // Only skip saving a genuinely empty draft (no text, no mood/energy,
+    // no gratitude, no tags) that was never saved before - previously
+    // this only checked contentText, so filling in mood/energy/gratitude
+    // without typing any text silently never saved anything.
+    if (!hasAnyContent && !entryId) {
       setStatus("idle");
       return;
     }
-    const { mood, energy, gratitude, tags } = latestRef.current;
-    const result = await saveDraftEntryAction({
-      id: entryId ?? undefined,
-      contentJson: editor.getJSON(),
-      contentText,
-      mood,
-      energyMorning: energy.morning,
-      energyAfternoon: energy.afternoon,
-      energyEvening: energy.evening,
-      gratitude: gratitude.map((g) => g.trim()).filter(Boolean),
-      tags,
-      writingSeconds: currentWritingSeconds(),
-    });
+    let result;
+    try {
+      result = await saveDraftEntryAction({
+        id: entryId ?? undefined,
+        contentJson: editor.getJSON(),
+        contentText,
+        mood,
+        energyMorning: energy.morning,
+        energyAfternoon: energy.afternoon,
+        energyEvening: energy.evening,
+        gratitude: gratitude.map((g) => g.trim()).filter(Boolean),
+        tags,
+        writingSeconds: currentWritingSeconds(),
+      });
+    } catch {
+      setStatus("error");
+      return;
+    }
     if (result) {
       setEntryId(result.id);
       setStatus("saved");
       router.refresh();
     } else {
-      setStatus("idle");
+      setStatus("error");
     }
   }
 
@@ -164,17 +187,27 @@ export function JournalComposer({
 
       <JournalEditor editor={editor} />
 
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        {status === "saving" && (
-          <>
-            <Loader2 className="size-3 animate-spin" /> Saving…
-          </>
-        )}
-        {status === "saved" && (
-          <>
-            <Check className="size-3 text-primary" /> Saved
-          </>
-        )}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {status === "saving" && (
+            <>
+              <Loader2 className="size-3 animate-spin" /> Saving…
+            </>
+          )}
+          {status === "saved" && (
+            <>
+              <Check className="size-3 text-primary" /> Saved
+            </>
+          )}
+          {status === "error" && (
+            <>
+              <AlertCircle className="size-3 text-destructive" /> Couldn&apos;t save — try again
+            </>
+          )}
+        </div>
+        <Button type="button" variant="outline" size="xs" onClick={doSave} disabled={status === "saving"}>
+          Save
+        </Button>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
