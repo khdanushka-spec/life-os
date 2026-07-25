@@ -168,14 +168,20 @@ export async function getOrGenerateDailyInsight(userId: string): Promise<string 
   });
   if (tasks.length === 0) return null;
 
-  const { text } = await generateText({
-    model: resolved.model,
-    system: SYSTEM,
-    prompt: `Here are the user's open tasks:\n${tasks.map(taskLine).join("\n")}\n\nIn 1-2 sentences, give one practical, grounded piece of guidance for today - like what to tackle first or what's at risk. Base it only on the tasks listed.`,
-  });
-
-  await writeCache(userId, "insight", { text });
-  return text;
+  // Runs unconditionally on every /tasks page load (see the Promise.all in
+  // tasks/page.tsx) - a bare AI-call failure here must not crash the whole
+  // page, so this fails soft to null like every other AI feature in the app.
+  try {
+    const { text } = await generateText({
+      model: resolved.model,
+      system: SYSTEM,
+      prompt: `Here are the user's open tasks:\n${tasks.map(taskLine).join("\n")}\n\nIn 1-2 sentences, give one practical, grounded piece of guidance for today - like what to tackle first or what's at risk. Base it only on the tasks listed.`,
+    });
+    await writeCache(userId, "insight", { text });
+    return text;
+  } catch {
+    return null;
+  }
 }
 
 export async function generateTaskReport(

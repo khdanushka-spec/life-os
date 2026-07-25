@@ -12,7 +12,7 @@ export function AiFinancialInsights({
   initialCashflow,
   initialInsights,
 }: {
-  initialCashflow: { narrative: string; projection: CashFlowProjection } | null;
+  initialCashflow: { narrative: string | null; projection: CashFlowProjection } | null;
   initialInsights: { narrative: string | null; anomalies: SpendingAnomaly[] } | null;
 }) {
   const [cashflow, setCashflow] = useState(initialCashflow);
@@ -52,7 +52,7 @@ export function AiFinancialInsights({
             <p className="flex items-center gap-1.5 text-xs font-medium">
               <TrendingUp className="size-3.5" /> 30-day cash flow
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{cashflow.narrative}</p>
+            {cashflow.narrative && <p className="mt-1 text-xs text-muted-foreground">{cashflow.narrative}</p>}
             <p className="mt-1 text-[11px] text-muted-foreground">
               Projected balance: {formatCurrency(cashflow.projection.projectedBalance)}
             </p>

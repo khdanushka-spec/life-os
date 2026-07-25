@@ -71,7 +71,7 @@ async function trailingMonthlyAverages(userId: string, months = 3) {
 }
 
 export async function getOrGenerateCashflowNarrative(userId: string): Promise<{
-  narrative: string;
+  narrative: string | null;
   projection: ReturnType<typeof projectCashFlow>;
 } | null> {
   const cached = (await readCache(userId, "cashflow")) as
@@ -99,13 +99,21 @@ export async function getOrGenerateCashflowNarrative(userId: string): Promise<{
   );
 
   const resolved = await resolveAiModel();
-  if (!resolved) return null;
+  if (!resolved) return { narrative: null, projection };
 
-  const { text: narrative } = await generateText({
-    model: resolved.model,
-    system: SYSTEM,
-    prompt: `Here is a 30-day cash flow projection, already computed from known recurring income/bills:\nStarting liquid balance: ${formatCurrency(projection.startingBalance)}\nExpected income: ${formatCurrency(projection.incomeTotal)}\nExpected bills/expenses: ${formatCurrency(projection.expenseTotal)}\nProjected balance in 30 days: ${formatCurrency(projection.projectedBalance)}\n\nWrite one grounded, 1-2 sentence take on this projection. Do not restate every number - just the takeaway.`,
-  });
+  // Runs unconditionally on every /finance page load - if the AI call fails,
+  // still return the already-computed projection rather than losing it
+  // ("AI narrates, math computes": the math stands on its own).
+  let narrative: string | null = null;
+  try {
+    ({ text: narrative } = await generateText({
+      model: resolved.model,
+      system: SYSTEM,
+      prompt: `Here is a 30-day cash flow projection, already computed from known recurring income/bills:\nStarting liquid balance: ${formatCurrency(projection.startingBalance)}\nExpected income: ${formatCurrency(projection.incomeTotal)}\nExpected bills/expenses: ${formatCurrency(projection.expenseTotal)}\nProjected balance in 30 days: ${formatCurrency(projection.projectedBalance)}\n\nWrite one grounded, 1-2 sentence take on this projection. Do not restate every number - just the takeaway.`,
+    }));
+  } catch {
+    narrative = null;
+  }
 
   const result = { narrative, projection };
   await writeCache(userId, "cashflow", result);
@@ -165,11 +173,18 @@ export async function getOrGenerateSpendingInsights(userId: string): Promise<{
     )
     .join("\n");
 
-  const { text: narrative } = await generateText({
-    model: resolved.model,
-    system: SYSTEM,
-    prompt: `These spending categories are running above their trailing 3-month average this month:\n${lines}\n\nWrite up to 2 short, plain-language sentences noting this - no advice unless it's obvious, just an honest observation grounded in these exact numbers.`,
-  });
+  // Runs unconditionally on every /finance page load - if the AI call fails,
+  // still return the already-computed anomalies rather than losing them.
+  let narrative: string | null = null;
+  try {
+    ({ text: narrative } = await generateText({
+      model: resolved.model,
+      system: SYSTEM,
+      prompt: `These spending categories are running above their trailing 3-month average this month:\n${lines}\n\nWrite up to 2 short, plain-language sentences noting this - no advice unless it's obvious, just an honest observation grounded in these exact numbers.`,
+    }));
+  } catch {
+    narrative = null;
+  }
 
   const result = { narrative, anomalies };
   await writeCache(userId, "insights", result);
@@ -234,13 +249,19 @@ export async function getOrGenerateHealthScoreNarrative(userId: string): Promise
 
   const resolved = await resolveAiModel();
   let narrative: string | null = null;
+  // Runs unconditionally on every /finance page load - if the AI call fails,
+  // still return the already-computed score breakdown rather than losing it.
   if (resolved) {
-    const { text } = await generateText({
-      model: resolved.model,
-      system: SYSTEM,
-      prompt: `Financial health score: ${breakdown.score}/100, built from: savings rate ${(breakdown.savingsRate.value * 100).toFixed(0)}% (score ${breakdown.savingsRate.score}), emergency fund covers ${breakdown.emergencyFund.months.toFixed(1)} months of expenses (score ${breakdown.emergencyFund.score}), debt-to-income ${(breakdown.debtToIncome.value * 100).toFixed(0)}% (score ${breakdown.debtToIncome.score}), budget adherence ${(breakdown.budgetAdherence.value * 100).toFixed(0)}% (score ${breakdown.budgetAdherence.score}).\n\nIn 1-2 sentences, name the single biggest lever to improve this score. Ground it only in the numbers above.`,
-    });
-    narrative = text;
+    try {
+      const { text } = await generateText({
+        model: resolved.model,
+        system: SYSTEM,
+        prompt: `Financial health score: ${breakdown.score}/100, built from: savings rate ${(breakdown.savingsRate.value * 100).toFixed(0)}% (score ${breakdown.savingsRate.score}), emergency fund covers ${breakdown.emergencyFund.months.toFixed(1)} months of expenses (score ${breakdown.emergencyFund.score}), debt-to-income ${(breakdown.debtToIncome.value * 100).toFixed(0)}% (score ${breakdown.debtToIncome.score}), budget adherence ${(breakdown.budgetAdherence.value * 100).toFixed(0)}% (score ${breakdown.budgetAdherence.score}).\n\nIn 1-2 sentences, name the single biggest lever to improve this score. Ground it only in the numbers above.`,
+      });
+      narrative = text;
+    } catch {
+      narrative = null;
+    }
   }
 
   const result = { breakdown, narrative };

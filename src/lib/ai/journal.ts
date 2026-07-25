@@ -59,14 +59,20 @@ export async function getOrGenerateReflection(userId: string): Promise<string | 
   });
   if (entries.length === 0) return null;
 
-  const { text } = await generateText({
-    model: resolved.model,
-    system: SYSTEM,
-    prompt: `Here are the user's most recent journal entries:\n${entryLines(entries)}\n\nWrite one warm, specific, 1-2 sentence reflection on how they've been doing lately. No greeting, no generic advice - just an honest, grounded observation based on what they actually wrote.`,
-  });
-
-  await writeCache(userId, "reflection", { text });
-  return text;
+  // Runs unconditionally on every /journal page load - a bare AI-call
+  // failure here must not crash the whole page, so this fails soft to null
+  // like every other AI feature in the app.
+  try {
+    const { text } = await generateText({
+      model: resolved.model,
+      system: SYSTEM,
+      prompt: `Here are the user's most recent journal entries:\n${entryLines(entries)}\n\nWrite one warm, specific, 1-2 sentence reflection on how they've been doing lately. No greeting, no generic advice - just an honest, grounded observation based on what they actually wrote.`,
+    });
+    await writeCache(userId, "reflection", { text });
+    return text;
+  } catch {
+    return null;
+  }
 }
 
 export async function getOrGenerateInsights(userId: string): Promise<string[] | null> {
@@ -93,18 +99,23 @@ export async function getOrGenerateInsights(userId: string): Promise<string[] | 
     ? habits.map((h) => `- ${h.title}: completed ${h.logs.length} of the last 30 days`).join("\n")
     : "No habits tracked.";
 
-  const { output } = await generateText({
-    model: resolved.model,
-    system: SYSTEM,
-    prompt: `Journal entries from the last 30 days:\n${entryLines(entries)}\n\nHabit completion over the same period:\n${habitSummary}\n\nSurface up to 5 short, honest observations about patterns in mood, energy, habits, or recurring themes - things like "you've mentioned X three days in a row" or "your best days follow Y". Only state a pattern that's actually supported by the data above. If there isn't a real pattern yet, return fewer insights, or one gentle encouragement to keep journaling - never fabricate a trend.`,
-    output: Output.object({ schema: insightsSchema }),
-  });
+  // Same page-load crash risk as getOrGenerateReflection above.
+  try {
+    const { output } = await generateText({
+      model: resolved.model,
+      system: SYSTEM,
+      prompt: `Journal entries from the last 30 days:\n${entryLines(entries)}\n\nHabit completion over the same period:\n${habitSummary}\n\nSurface up to 5 short, honest observations about patterns in mood, energy, habits, or recurring themes - things like "you've mentioned X three days in a row" or "your best days follow Y". Only state a pattern that's actually supported by the data above. If there isn't a real pattern yet, return fewer insights, or one gentle encouragement to keep journaling - never fabricate a trend.`,
+      output: Output.object({ schema: insightsSchema }),
+    });
 
-  const { insights } = insightsSchema.parse(output);
-  if (insights.length === 0) return null;
+    const { insights } = insightsSchema.parse(output);
+    if (insights.length === 0) return null;
 
-  await writeCache(userId, "insights", { insights });
-  return insights;
+    await writeCache(userId, "insights", { insights });
+    return insights;
+  } catch {
+    return null;
+  }
 }
 
 export async function generateReport(
