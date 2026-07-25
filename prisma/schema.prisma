@@ -43,6 +43,8 @@ model User {
   taskAiCaches      TaskAiCache[]
   taskReports       TaskReport[]
   habits            Habit[]
+  habitCategories   HabitCategory[]
+  habitAchievements HabitAchievement[]
   journalEntries    JournalEntry[]
   journalAiCaches   JournalAiCache[]
   journalReports    JournalReport[]
@@ -206,31 +208,130 @@ model TaskReport {
   @@unique([userId, period, periodStart])
 }
 
-model Habit {
+enum HabitTimeOfDay {
+  MORNING
+  AFTERNOON
+  EVENING
+  ANYTIME
+}
+
+// CUSTOM uses customDays (0=Sun..6=Sat). "Specific dates" one-off
+// scheduling (vs. a recurring pattern) is deliberately not supported -
+// out of scope for v1, see HANDOVER.
+enum HabitSchedule {
+  DAILY
+  WEEKDAYS
+  WEEKENDS
+  CUSTOM
+}
+
+enum HabitGoalType {
+  ONCE
+  MULTIPLE
+  DURATION
+}
+
+enum HabitDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum HabitPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Per-user custom tags (e.g. "Health", "Mindfulness") used for the
+// category color dot/badge and the category-comparison analytics
+// grouping - separate from a habit's own icon/color, which are set
+// individually per habit rather than inherited from the category.
+model HabitCategory {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  archived  Boolean  @default(false)
+  name      String
+  color     String
+  icon      String   @default("🏷️")
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  logs HabitLog[]
+  habits Habit[]
+
+  @@unique([userId, name])
+}
+
+model Habit {
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @db.Uuid
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  icon             String          @default("✨")
+  color            String          @default("#6366f1")
+  categoryId       String?         @db.Uuid
+  category         HabitCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  timeOfDay        HabitTimeOfDay  @default(ANYTIME)
+  schedule         HabitSchedule   @default(DAILY)
+  customDays       Int[]           @default([])
+  goalType         HabitGoalType   @default(ONCE)
+  // targetCount/targetUnit back MULTIPLE goals (e.g. "8 glasses");
+  // estimatedMinutes doubles as the DURATION goal's target and as the
+  // habit card's displayed estimated duration for other goal types.
+  targetCount      Int?
+  targetUnit       String?
+  estimatedMinutes Int?
+  difficulty       HabitDifficulty @default(MEDIUM)
+  priority         HabitPriority   @default(MEDIUM)
+  motivation       String?
+  reward           String?
+  // Reminder fields are stored for a future notification system - v1
+  // only surfaces "next reminder" as text, no real push delivery yet.
+  reminderEnabled  Boolean         @default(false)
+  reminderTime     String?
+  reminderSound    Boolean         @default(true)
+  archived         Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  logs         HabitLog[]
+  achievements HabitAchievement[]
 
   @@index([userId, archived])
 }
 
 // One row per calendar day a habit was completed. The unique constraint
 // on (habitId, date) both prevents double-logging and makes "toggle
-// today" a simple create-or-delete.
+// today" a simple create-or-delete. completedAt/value/note are nullable
+// since pre-redesign rows have none of them - only used for logs created
+// through the new UI (also means Early Bird/Night Owl achievement checks
+// naturally skip old data instead of fabricating false timestamps).
 model HabitLog {
-  id        String   @id @default(uuid()) @db.Uuid
-  habitId   String   @db.Uuid
-  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
-  date      DateTime @db.Date
-  createdAt DateTime @default(now())
+  id          String    @id @default(uuid()) @db.Uuid
+  habitId     String    @db.Uuid
+  habit       Habit     @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date        DateTime  @db.Date
+  completedAt DateTime?
+  value       Int?
+  note        String?
+  createdAt   DateTime  @default(now())
 
   @@unique([habitId, date])
+}
+
+// Account-wide unlock events (not per-habit) - e.g. "7 Day Streak" fires
+// once the first time any habit reaches a 7-day streak, not once per
+// habit. habitId just records which habit triggered it, for display.
+model HabitAchievement {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habitId    String?  @db.Uuid
+  habit      Habit?   @relation(fields: [habitId], references: [id], onDelete: SetNull)
+  key        String
+  unlockedAt DateTime @default(now())
+
+  @@unique([userId, key])
 }
 
 enum Mood {
