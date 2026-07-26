@@ -33,5 +33,5 @@ export const navItems: NavItem[] = [
   { title: "Learning", href: "/learning", icon: GraduationCap },
   { title: "Family", href: "/family", icon: Users },
   { title: "Travel", href: "/travel", icon: Plane },
-  { title: "Knowledge Vault", href: "/vault", icon: BookOpen, disabled: true },
+  { title: "Knowledge Vault", href: "/vault", icon: BookOpen },
 ];

@@ -12,6 +12,7 @@ import { MEDICAL_RECORD_TYPE_META } from "@/lib/health";
 import { COURSE_STATUS_META, BOOK_STATUS_META } from "@/lib/learning";
 import { daysUntilAnnualDate, FAMILY_EVENT_TYPE_META, GIFT_IDEA_STATUS_META } from "@/lib/family";
 import { TRIP_STATUS_META, BOOKING_TYPE_META } from "@/lib/travel";
+import { VAULT_ITEM_TYPE_META } from "@/lib/vault";
 
 export async function POST(req: Request) {
   const dbUser = await getDbUser();
@@ -273,9 +274,22 @@ export async function POST(req: Request) {
         .join("\n")
     : "No trips currently planned.";
 
+  const [recentVaultItems, favoritedVaultItems] = await Promise.all([
+    prisma.vaultItem.findMany({ where: { userId: dbUser.id }, orderBy: { updatedAt: "desc" }, take: 10 }),
+    prisma.vaultItem.findMany({ where: { userId: dbUser.id, favorited: true }, orderBy: { updatedAt: "desc" }, take: 10 }),
+  ]);
+
+  const formatVaultItem = (i: (typeof recentVaultItems)[number]) => {
+    const preview = i.contentText.length > 150 ? `${i.contentText.slice(0, 150)}...` : i.contentText;
+    return `- "${i.title}" [${VAULT_ITEM_TYPE_META[i.type].label}]${i.category ? ` (${i.category})` : ""}${i.tags.length ? ` tags: ${i.tags.join(", ")}` : ""}${preview ? ` - ${preview}` : ""}`;
+  };
+
+  const recentVaultSummary = recentVaultItems.length ? recentVaultItems.map(formatVaultItem).join("\n") : "Nothing saved yet.";
+  const favoritedVaultSummary = favoritedVaultItems.length ? favoritedVaultItems.map(formatVaultItem).join("\n") : "No favorited items.";
+
   const system = `You are Aura Brain inside AURA OS, a calm, AI-first personal life-management app. Be concise, warm, and direct - this is a personal assistant, not a customer support bot.
 
-You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), health (daily check-ins, workouts, medical follow-ups), learning (study sessions, courses, books), family (birthdays, events, gift ideas), and travel (trips, bookings, packing). Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
+You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), health (daily check-ins, workouts, medical follow-ups), learning (study sessions, courses, books), family (birthdays, events, gift ideas), travel (trips, bookings, packing), and their knowledge vault (saved notes and links). You only see the most recent and favorited vault items below, not the full vault - if asked about something not listed, say you don't see it in what's shown to you rather than guessing. Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
 
 CRITICAL for finance: only ever state the numbers given to you below. Never estimate, guess, or invent a dollar figure, balance, or trend that isn't explicitly present in this context.
 
@@ -330,7 +344,13 @@ Their open gift ideas (not yet purchased):
 ${giftIdeasSummary}
 
 Their planned/upcoming trips:
-${tripsSummary}`;
+${tripsSummary}
+
+Their most recently updated vault items:
+${recentVaultSummary}
+
+Their favorited vault items:
+${favoritedVaultSummary}`;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 

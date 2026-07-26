@@ -88,6 +88,9 @@ model User {
   wishlistDestinations WishlistDestination[]
   travelAiCaches       TravelAiCache[]
   travelReports        TravelReport[]
+  vaultItems           VaultItem[]
+  vaultAiCaches        VaultAiCache[]
+  vaultReports         VaultReport[]
 }
 
 // DB-backed sessions for locally-authenticated admin users. id stores a
@@ -1240,6 +1243,67 @@ model TravelAiCache {
 // User-triggered daily/weekly/monthly/yearly report, same pattern as
 // FamilyReport/WorkReport/HealthReport/LearningReport.
 model TravelReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
+}
+
+enum VaultItemType {
+  NOTE
+  LINK
+}
+
+// A single polymorphic model rather than parallel Note/Link/File models -
+// the Vault is fundamentally one searchable, filterable list, not several
+// domain entities like Work's Project/Client/Meeting. contentJson/
+// contentText reuse JournalEntry's TipTap-doc + plain-text-mirror pattern
+// (the mirror is what search filters against). NOTE items use both
+// fields; LINK items only use contentText for an optional description.
+// No file/PDF/image/video attachment yet - real file storage is
+// deliberately deferred everywhere else in this app (Work/Health/
+// Learning/Family/Travel all defer it too), and Vault will be the first
+// to actually need it - a follow-up scope decision, not implicit scope
+// creep here.
+model VaultItem {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String        @db.Uuid
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        VaultItemType
+  title       String
+  contentJson Json?
+  contentText String        @default("")
+  url         String?
+  category    String?
+  tags        String[]      @default([])
+  favorited   Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId, type])
+  @@index([userId, favorited])
+}
+
+model VaultAiCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  kind      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, kind])
+}
+
+// User-triggered daily/weekly/monthly/yearly report, same pattern as
+// TravelReport/FamilyReport/WorkReport/HealthReport/LearningReport.
+model VaultReport {
   id          String       @id @default(uuid()) @db.Uuid
   userId      String       @db.Uuid
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
