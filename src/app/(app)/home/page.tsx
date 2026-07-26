@@ -320,7 +320,7 @@ export default async function HomePage() {
               ))}
             {tasks?.length === 0 && (
               <EmptyState
-                icon={ListChecks}
+                icon={<ListChecks />}
                 title="All caught up"
                 description="Nothing urgent on your plate right now."
                 action={{ label: "Add a task", href: "/tasks" }}
@@ -367,7 +367,7 @@ export default async function HomePage() {
             {timeline &&
               Object.values(timeline).every((items) => items.length === 0) && (
                 <EmptyState
-                  icon={CalendarClock}
+                  icon={<CalendarClock />}
                   title="Nothing scheduled yet"
                   description="Tasks with a due date today will show up here."
                   action={{ label: "Plan your day", href: "/tasks" }}

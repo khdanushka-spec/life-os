@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { fadeInUp } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -16,8 +16,15 @@ export type EmptyStateAction = {
 // Shared "nothing here yet" treatment - icon + message + a real next step,
 // never a bare "Nothing here" sentence. Every module's empty list/board
 // state should route through this rather than hand-rolling its own.
+//
+// icon takes a rendered element (e.g. <ListChecks />), not a component
+// reference - this is used from async Server Component pages, and a bare
+// component type isn't serializable across the server/client boundary
+// ("Functions cannot be passed directly to Client Components"). A JSX
+// element is a plain serializable object, so this is the fix, not a
+// workaround.
 export function EmptyState({
-  icon: Icon,
+  icon,
   title,
   description,
   action,
@@ -25,7 +32,7 @@ export function EmptyState({
   helpText,
   className,
 }: {
-  icon: LucideIcon;
+  icon: ReactNode;
   title: string;
   description?: string;
   action?: EmptyStateAction;
@@ -45,7 +52,7 @@ export function EmptyState({
     >
       <div className="relative flex size-14 items-center justify-center rounded-2xl bg-accent">
         <div aria-hidden className="absolute inset-0 rounded-2xl bg-primary/10 blur-md" />
-        <Icon className="relative size-6 text-primary" />
+        <span className="relative [&>svg]:size-6 [&>svg]:text-primary">{icon}</span>
       </div>
       <div className="flex max-w-sm flex-col gap-1.5">
         <p className="text-subheading">{title}</p>
