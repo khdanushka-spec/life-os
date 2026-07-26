@@ -43,6 +43,12 @@ model User {
   workDocuments     WorkDocument[]
   workAiCaches      WorkAiCache[]
   workReports       WorkReport[]
+  dailyHealthLogs   DailyHealthLog[]
+  workouts          Workout[]
+  nutritionEntries  NutritionEntry[]
+  medicalRecords    MedicalRecord[]
+  healthAiCaches    HealthAiCache[]
+  healthReports     HealthReport[]
   comments          Comment[]
   quickNote         QuickNote?
   taskAiCaches      TaskAiCache[]
@@ -230,6 +236,125 @@ model WorkAiCache {
 // User-triggered daily/weekly/monthly/yearly report, same pattern as
 // TaskReport/JournalReport/FinancialReport.
 model WorkReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
+}
+
+// The daily-scalar trackers (weight/water/sleep/wellbeing) live on one
+// row per user per day rather than four separate models - they're a
+// single quick check-in, not independent events like a workout or a
+// medical appointment. All fields are nullable since a day can log just
+// one or two of them.
+model DailyHealthLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            DateTime @db.Date
+  weightKg        Decimal? @db.Decimal(5, 2)
+  waterMl         Int?
+  sleepHours      Decimal? @db.Decimal(3, 1)
+  sleepQuality    Int? // 1-5
+  wellbeingScore  Int? // 1-10
+  note            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, date])
+}
+
+// Free-text type (not an enum) with UI-suggested presets - exercise
+// variety is too open-ended for a fixed list. performedAt is a full
+// timestamp (not just a date) since more than one workout can happen the
+// same day, same reasoning as Meeting.startTime.
+model Workout {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String
+  performedAt     DateTime
+  durationMinutes Int?
+  caloriesBurned  Int?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, performedAt])
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+// A lightweight meal log (description + optional calories) - not a food
+// database with macros, which is its own product. Matches the "log what
+// happened, don't model the whole domain" scope of Work's documents.
+model NutritionEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealType    MealType
+  description String
+  calories    Int?
+  loggedAt    DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId, loggedAt])
+}
+
+enum MedicalRecordType {
+  APPOINTMENT
+  PRESCRIPTION
+  TEST
+  VACCINATION
+  NOTE
+}
+
+// No file attachments - same deliberate deferral to the future Knowledge
+// Vault phase as Work's documents; this is a lightweight record of what
+// happened/is due, not a document store.
+model MedicalRecord {
+  id            String            @id @default(uuid()) @db.Uuid
+  userId        String            @db.Uuid
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          MedicalRecordType
+  title         String
+  provider      String?
+  notes         String?
+  date          DateTime          @db.Date
+  followUpDate  DateTime?         @db.Date
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([userId, date])
+}
+
+// Same shape and purpose as TaskAiCache/WorkAiCache: caches the Health
+// dashboard's AI daily insight once per day.
+model HealthAiCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  kind      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, kind])
+}
+
+// User-triggered daily/weekly/monthly/yearly report, same pattern as
+// TaskReport/WorkReport/FinancialReport.
+model HealthReport {
   id          String       @id @default(uuid()) @db.Uuid
   userId      String       @db.Uuid
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)

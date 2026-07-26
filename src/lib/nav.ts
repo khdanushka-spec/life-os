@@ -29,7 +29,7 @@ export const navItems: NavItem[] = [
   { title: "Finance", href: "/finance", icon: Wallet },
   { title: "Aura Brain", href: "/ai", icon: Sparkles },
   { title: "Work", href: "/work", icon: Briefcase },
-  { title: "Health", href: "/health", icon: HeartPulse, disabled: true },
+  { title: "Health", href: "/health", icon: HeartPulse },
   { title: "Learning", href: "/learning", icon: GraduationCap, disabled: true },
   { title: "Family", href: "/family", icon: Users, disabled: true },
   { title: "Travel", href: "/travel", icon: Plane, disabled: true },

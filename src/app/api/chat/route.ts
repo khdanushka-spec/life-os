@@ -8,6 +8,7 @@ import { startOfMonth } from "@/lib/date";
 import { computeNetWorth, decToNumber, formatCurrency, occurrencesInRange } from "@/lib/finance";
 import { PRIORITY_META } from "@/lib/tasks";
 import { PROJECT_STATUS_META } from "@/lib/work";
+import { MEDICAL_RECORD_TYPE_META } from "@/lib/health";
 
 export async function POST(req: Request) {
   const dbUser = await getDbUser();
@@ -151,9 +152,45 @@ export async function POST(req: Request) {
         .join("\n")
     : "No meetings scheduled in the next 7 days.";
 
+  const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
+  const [recentHealthLogs, recentWorkouts, upcomingFollowUps] = await Promise.all([
+    prisma.dailyHealthLog.findMany({ where: { userId: dbUser.id, date: { gte: weekAgo } }, orderBy: { date: "asc" } }),
+    prisma.workout.findMany({ where: { userId: dbUser.id, performedAt: { gte: weekAgo } }, orderBy: { performedAt: "asc" } }),
+    prisma.medicalRecord.findMany({
+      where: { userId: dbUser.id, followUpDate: { gte: now, lt: in7Days } },
+      orderBy: { followUpDate: "asc" },
+    }),
+  ]);
+
+  const healthLogSummary = recentHealthLogs.length
+    ? recentHealthLogs
+        .map((l) => {
+          const bits = [
+            l.waterMl != null ? `water ${l.waterMl}ml` : null,
+            l.sleepHours != null ? `slept ${l.sleepHours}h` : null,
+            l.wellbeingScore != null ? `wellbeing ${l.wellbeingScore}/10` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          return bits ? `- ${l.date.toDateString()}: ${bits}` : null;
+        })
+        .filter(Boolean)
+        .join("\n") || "No daily check-ins logged this week."
+    : "No daily check-ins logged this week.";
+
+  const workoutsSummary = recentWorkouts.length
+    ? recentWorkouts.map((w) => `- ${w.type} on ${w.performedAt.toDateString()}`).join("\n")
+    : "No workouts logged this week.";
+
+  const followUpsSummary = upcomingFollowUps.length
+    ? upcomingFollowUps
+        .map((f) => `- ${MEDICAL_RECORD_TYPE_META[f.type].label}: ${f.title} due ${f.followUpDate!.toDateString()}`)
+        .join("\n")
+    : "No medical follow-ups due in the next 7 days.";
+
   const system = `You are Aura Brain inside AURA OS, a calm, AI-first personal life-management app. Be concise, warm, and direct - this is a personal assistant, not a customer support bot.
 
-You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, and work (projects, clients, meetings). Don't claim to know about their calendar, health metrics, or other life areas - those modules don't exist yet.
+You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), and health (daily check-ins, workouts, medical follow-ups). Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
 
 CRITICAL for finance: only ever state the numbers given to you below. Never estimate, guess, or invent a dollar figure, balance, or trend that isn't explicitly present in this context.
 
@@ -178,7 +215,16 @@ Their active work projects:
 ${workSummary}
 
 Their meetings in the next 7 days:
-${meetingsSummary}`;
+${meetingsSummary}
+
+Their health check-ins this week:
+${healthLogSummary}
+
+Their workouts this week:
+${workoutsSummary}
+
+Their upcoming medical follow-ups (next 7 days):
+${followUpsSummary}`;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 

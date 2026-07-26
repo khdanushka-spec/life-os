@@ -19,6 +19,7 @@ import { startOfMonth, startOfBrisbaneDay, brisbaneDateKey } from "@/lib/date";
 import { decToNumber } from "@/lib/finance";
 import { computeFocusScore, estimateWorkloadMinutes, buildSmartTimeline, type SmartTimelineBuckets } from "@/lib/tasks";
 import { computeProjectProgress } from "@/lib/work";
+import { computeWellnessScore } from "@/lib/health";
 import { BrisbaneClock } from "@/components/brisbane-clock";
 import type { Task } from "@/generated/prisma/client";
 
@@ -61,6 +62,7 @@ async function getDashboardData(): Promise<{
   financePercent: number | null;
   tasksPercent: number | null;
   workPercent: number | null;
+  healthPercent: number | null;
   timeline: SmartTimelineBuckets | null;
 }> {
   if (!isSupabaseConfigured()) {
@@ -71,6 +73,7 @@ async function getDashboardData(): Promise<{
       financePercent: null,
       tasksPercent: null,
       workPercent: null,
+      healthPercent: null,
       timeline: null,
     };
   }
@@ -148,8 +151,29 @@ async function getDashboardData(): Promise<{
     ? Math.round(workProjects.reduce((sum, p) => sum + computeProjectProgress(p.tasks), 0) / workProjects.length)
     : null;
 
+  const todayKey = brisbaneDateKey();
+  const todayHealthLog = await prisma.dailyHealthLog.findUnique({
+    where: { userId_date: { userId: dbUser.id, date: new Date(`${todayKey}T00:00:00.000Z`) } },
+  });
+  const [recentHealthLogs, workoutsThisWeek] = await Promise.all([
+    prisma.dailyHealthLog.findMany({
+      where: { userId: dbUser.id, date: { gte: new Date(Date.now() - 7 * 86_400_000) }, sleepHours: { not: null } },
+      orderBy: { date: "desc" },
+      take: 1,
+    }),
+    prisma.workout.count({ where: { userId: dbUser.id, performedAt: { gte: new Date(Date.now() - 7 * 86_400_000) } } }),
+  ]);
+  const healthPercent = todayHealthLog || recentHealthLogs.length || workoutsThisWeek
+    ? computeWellnessScore({
+        waterMl: todayHealthLog?.waterMl ?? null,
+        sleepHours: recentHealthLogs[0]?.sleepHours ? Number(recentHealthLogs[0].sleepHours) : null,
+        wellbeingScore: todayHealthLog?.wellbeingScore ?? null,
+        workoutsThisWeek,
+      })
+    : null;
+
   const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
-  return { name, tasks, habitsPercent, financePercent, tasksPercent, workPercent, timeline };
+  return { name, tasks, habitsPercent, financePercent, tasksPercent, workPercent, healthPercent, timeline };
 }
 
 const timelineSections = [
@@ -160,7 +184,7 @@ const timelineSections = [
 ] as const;
 
 export default async function HomePage() {
-  const { name, tasks, habitsPercent, financePercent, tasksPercent, workPercent, timeline } = await getDashboardData();
+  const { name, tasks, habitsPercent, financePercent, tasksPercent, workPercent, healthPercent, timeline } = await getDashboardData();
   // Brisbane's date, not the server's (Vercel functions run UTC) - keeps
   // "today" in sync with the Smart Timeline's own Brisbane day boundary.
   const today = new Date().toLocaleDateString("en-AU", {
@@ -319,6 +343,7 @@ export default async function HomePage() {
             if (m.label === "Habits" && habitsPercent !== null) value = habitsPercent;
             if (m.label === "Finance" && financePercent !== null) value = financePercent;
             if (m.label === "Work" && workPercent !== null) value = workPercent;
+            if (m.label === "Health" && healthPercent !== null) value = healthPercent;
             return <CircularProgress key={m.label} value={value} label={m.label} />;
           })}
         </CardContent>
