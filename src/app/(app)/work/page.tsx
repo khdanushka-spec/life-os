@@ -1,18 +1,29 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { buttonVariants } from "@/components/ui/button";
 import { computeProjectProgress, isWithinNextDays } from "@/lib/work";
+import { getOrGenerateDailyInsight } from "@/lib/ai/work";
 import { WorkHeader } from "@/components/work/work-header";
 import { WorkStatsRow } from "@/components/work/work-stats-row";
 import { ProjectBoard } from "@/components/work/project-board";
 import { UpcomingMeetings } from "@/components/work/upcoming-meetings";
 import { ClientsQuickList } from "@/components/work/clients-quick-list";
 import { RecentDocuments } from "@/components/work/recent-documents";
+import { WorkInsightCard } from "@/components/work/work-insight-card";
 import type { ProjectWithStats } from "@/components/work/types";
+
+const SUB_PAGES = [
+  { href: "/work/clients", label: "Clients" },
+  { href: "/work/meetings", label: "Meetings" },
+  { href: "/work/documents", label: "Documents" },
+  { href: "/work/reports", label: "Reports" },
+];
 
 export default async function WorkPage() {
   const dbUser = await requireDbUser();
 
-  const [projects, clients, meetings, documents] = await Promise.all([
+  const [projects, clients, meetings, documents, dailyInsight] = await Promise.all([
     prisma.project.findMany({
       where: { userId: dbUser.id, kind: "WORK", archived: false },
       orderBy: { createdAt: "desc" },
@@ -34,6 +45,7 @@ export default async function WorkPage() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
+    getOrGenerateDailyInsight(dbUser.id),
   ]);
 
   const projectsWithStats: ProjectWithStats[] = projects.map((p) => ({
@@ -66,6 +78,14 @@ export default async function WorkPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:p-6">
       <WorkHeader clients={clientOptions} />
 
+      <div className="flex flex-wrap gap-2">
+        {SUB_PAGES.map((p) => (
+          <Link key={p.href} href={p.href} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            {p.label}
+          </Link>
+        ))}
+      </div>
+
       <WorkStatsRow
         activeProjects={activeProjects}
         upcomingDeadlines={upcomingDeadlines}
@@ -76,6 +96,7 @@ export default async function WorkPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <ProjectBoard projects={projectsWithStats} clients={clientOptions} />
         <div className="flex flex-col gap-6">
+          <WorkInsightCard insight={dailyInsight} />
           <UpcomingMeetings
             meetings={meetings.map((m) => ({
               id: m.id,

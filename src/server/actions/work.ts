@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
+import { generateWorkReport } from "@/lib/ai/work";
+import type { ReportPeriod } from "@/generated/prisma/client";
 
 function revalidateWork(subpath?: string) {
   revalidatePath("/work");
@@ -159,4 +161,13 @@ export async function deleteDocumentAction(documentId: string) {
   const dbUser = await requireDbUser();
   await prisma.workDocument.deleteMany({ where: { id: documentId, userId: dbUser.id } });
   revalidateWork();
+}
+
+// ---------- Reports ----------
+
+export async function generateWorkReportAction(period: ReportPeriod, periodStart: string) {
+  const dbUser = await requireDbUser();
+  const summary = await generateWorkReport(dbUser.id, period, new Date(periodStart));
+  revalidateWork("/work/reports");
+  return summary;
 }

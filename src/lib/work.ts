@@ -1,5 +1,26 @@
+import { z } from "zod";
 import { brisbaneDateKey } from "@/lib/date";
 import type { ProjectStatus, TaskStatus } from "@/generated/prisma/client";
+
+// The AI only ever fills in these narrative fields - every number in a
+// report is computed separately and merged in, same "AI narrates, math
+// computes" principle as Tasks'/Finance's reports.
+export const workReportNarrativeSchema = z.object({
+  overview: z.string(),
+  wins: z.array(z.string()).max(5),
+  challenges: z.array(z.string()).max(5),
+  suggestions: z.array(z.string()).max(5),
+});
+export type WorkReportNarrative = z.infer<typeof workReportNarrativeSchema>;
+
+export type WorkReportSummary = WorkReportNarrative & {
+  projectsCompleted: number;
+  projectsActive: number;
+  deadlinesMet: number;
+  deadlinesMissed: number;
+  meetingsHeld: number;
+  topClients: { client: string; count: number }[];
+};
 
 export const PROJECT_COLOR_OPTIONS = [
   "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316",

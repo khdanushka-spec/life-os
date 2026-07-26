@@ -18,6 +18,7 @@ import { greeting } from "@/lib/greeting";
 import { startOfMonth, startOfBrisbaneDay, brisbaneDateKey } from "@/lib/date";
 import { decToNumber } from "@/lib/finance";
 import { computeFocusScore, estimateWorkloadMinutes, buildSmartTimeline, type SmartTimelineBuckets } from "@/lib/tasks";
+import { computeProjectProgress } from "@/lib/work";
 import { BrisbaneClock } from "@/components/brisbane-clock";
 import type { Task } from "@/generated/prisma/client";
 
@@ -40,6 +41,7 @@ function formatDue(date: Date) {
 
 const momentum = [
   { label: "Tasks", value: 62 },
+  { label: "Work", value: 50 },
   { label: "Health", value: 40 },
   { label: "Learning", value: 25 },
   { label: "Finance", value: 80 },
@@ -58,10 +60,19 @@ async function getDashboardData(): Promise<{
   habitsPercent: number | null;
   financePercent: number | null;
   tasksPercent: number | null;
+  workPercent: number | null;
   timeline: SmartTimelineBuckets | null;
 }> {
   if (!isSupabaseConfigured()) {
-    return { name: "there", tasks: null, habitsPercent: null, financePercent: null, tasksPercent: null, timeline: null };
+    return {
+      name: "there",
+      tasks: null,
+      habitsPercent: null,
+      financePercent: null,
+      tasksPercent: null,
+      workPercent: null,
+      timeline: null,
+    };
   }
 
   const dbUser = await requireDbUser();
@@ -129,8 +140,16 @@ async function getDashboardData(): Promise<{
     financePercent = Math.round((underLimit / budgets.length) * 100);
   }
 
+  const workProjects = await prisma.project.findMany({
+    where: { userId: dbUser.id, kind: "WORK", archived: false, status: "ACTIVE" },
+    include: { tasks: true },
+  });
+  const workPercent = workProjects.length
+    ? Math.round(workProjects.reduce((sum, p) => sum + computeProjectProgress(p.tasks), 0) / workProjects.length)
+    : null;
+
   const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
-  return { name, tasks, habitsPercent, financePercent, tasksPercent, timeline };
+  return { name, tasks, habitsPercent, financePercent, tasksPercent, workPercent, timeline };
 }
 
 const timelineSections = [
@@ -141,7 +160,7 @@ const timelineSections = [
 ] as const;
 
 export default async function HomePage() {
-  const { name, tasks, habitsPercent, financePercent, tasksPercent, timeline } = await getDashboardData();
+  const { name, tasks, habitsPercent, financePercent, tasksPercent, workPercent, timeline } = await getDashboardData();
   // Brisbane's date, not the server's (Vercel functions run UTC) - keeps
   // "today" in sync with the Smart Timeline's own Brisbane day boundary.
   const today = new Date().toLocaleDateString("en-AU", {
@@ -299,6 +318,7 @@ export default async function HomePage() {
             if (m.label === "Tasks" && tasksPercent !== null) value = tasksPercent;
             if (m.label === "Habits" && habitsPercent !== null) value = habitsPercent;
             if (m.label === "Finance" && financePercent !== null) value = financePercent;
+            if (m.label === "Work" && workPercent !== null) value = workPercent;
             return <CircularProgress key={m.label} value={value} label={m.label} />;
           })}
         </CardContent>

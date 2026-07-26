@@ -41,6 +41,8 @@ model User {
   clients           Client[]
   meetings          Meeting[]
   workDocuments     WorkDocument[]
+  workAiCaches      WorkAiCache[]
+  workReports       WorkReport[]
   comments          Comment[]
   quickNote         QuickNote?
   taskAiCaches      TaskAiCache[]
@@ -209,6 +211,34 @@ model WorkDocument {
   updatedAt   DateTime @updatedAt
 
   @@index([userId])
+}
+
+// Same shape and purpose as TaskAiCache/JournalAiCache/FinancialAiCache:
+// caches the Work dashboard's AI daily insight once per day.
+model WorkAiCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  kind      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, kind])
+}
+
+// User-triggered daily/weekly/monthly/yearly report, same pattern as
+// TaskReport/JournalReport/FinancialReport.
+model WorkReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
 }
 
 // descriptionJson/descriptionText mirror JournalEntry's contentJson/

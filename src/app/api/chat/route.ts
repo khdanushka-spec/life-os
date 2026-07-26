@@ -7,6 +7,7 @@ import { moodMeta } from "@/lib/journal";
 import { startOfMonth } from "@/lib/date";
 import { computeNetWorth, decToNumber, formatCurrency, occurrencesInRange } from "@/lib/finance";
 import { PRIORITY_META } from "@/lib/tasks";
+import { PROJECT_STATUS_META } from "@/lib/work";
 
 export async function POST(req: Request) {
   const dbUser = await getDbUser();
@@ -111,9 +112,48 @@ export async function POST(req: Request) {
     .map(({ r, date }) => `- ${r.name}: ${formatCurrency(decToNumber(r.amount))} due ${date.toDateString()}`);
   const upcomingSummary = upcomingLines.length ? upcomingLines.join("\n") : "No bills due in the next 7 days.";
 
+  const [workProjects, upcomingMeetings] = await Promise.all([
+    prisma.project.findMany({
+      where: { userId: dbUser.id, kind: "WORK", archived: false, status: { in: ["ACTIVE", "ON_HOLD"] } },
+      include: { client: true },
+      orderBy: { deadline: "asc" },
+      take: 15,
+    }),
+    prisma.meeting.findMany({
+      where: { userId: dbUser.id, startTime: { gte: now, lt: in7Days } },
+      include: { project: true, client: true },
+      orderBy: { startTime: "asc" },
+      take: 10,
+    }),
+  ]);
+
+  const workSummary = workProjects.length
+    ? workProjects
+        .map((p) => {
+          const bits = [
+            `[${PROJECT_STATUS_META[p.status].label}]`,
+            p.deadline ? `deadline ${p.deadline.toDateString()}${p.deadline < now ? " (overdue)" : ""}` : "no deadline",
+            p.client ? `client: ${p.client.name}` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          return `- ${p.name} - ${bits}`;
+        })
+        .join("\n")
+    : "No active work projects.";
+
+  const meetingsSummary = upcomingMeetings.length
+    ? upcomingMeetings
+        .map(
+          (m) =>
+            `- ${m.title} at ${m.startTime.toLocaleString()}${m.project ? ` (${m.project.name})` : ""}${m.client ? ` with ${m.client.name}` : ""}`,
+        )
+        .join("\n")
+    : "No meetings scheduled in the next 7 days.";
+
   const system = `You are Aura Brain inside AURA OS, a calm, AI-first personal life-management app. Be concise, warm, and direct - this is a personal assistant, not a customer support bot.
 
-You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, and finances. Don't claim to know about their calendar, health metrics, or other life areas - those modules don't exist yet.
+You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, and work (projects, clients, meetings). Don't claim to know about their calendar, health metrics, or other life areas - those modules don't exist yet.
 
 CRITICAL for finance: only ever state the numbers given to you below. Never estimate, guess, or invent a dollar figure, balance, or trend that isn't explicitly present in this context.
 
@@ -132,7 +172,13 @@ Their budgets this month:
 ${budgetSummary}
 
 Bills due in the next 7 days:
-${upcomingSummary}`;
+${upcomingSummary}
+
+Their active work projects:
+${workSummary}
+
+Their meetings in the next 7 days:
+${meetingsSummary}`;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 
