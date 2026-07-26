@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { brisbaneToday } from "@/lib/date";
-import { Priority, EnergyLevel, TaskStatus, RecurringInterval, type ReportPeriod } from "@/generated/prisma/client";
+import { Priority, EnergyLevel, TaskStatus, RecurringInterval, ProjectKind, ProjectStatus, type ReportPeriod } from "@/generated/prisma/client";
 import {
   parseQuickCapture,
   suggestSubtasks,
@@ -112,17 +112,53 @@ export async function deleteTaskAction(taskId: string) {
 
 // ---------- Projects ----------
 
+// kind/description/status/deadline/budget/clientId are all optional so
+// the Tasks module's simple "name + color" creation flow keeps working
+// unchanged - only the Work dashboard's richer New Project dialog sends
+// the extra fields.
 const projectSchema = z.object({
   name: z.string().trim().min(1).max(80),
   color: z.string().trim().min(1).max(20),
+  kind: z.nativeEnum(ProjectKind).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  status: z.nativeEnum(ProjectStatus).optional(),
+  deadline: z.string().nullable().optional(),
+  budget: z.number().positive().nullable().optional(),
+  clientId: z.string().uuid().nullable().optional(),
 });
+
+function revalidateWork(subpath?: string) {
+  revalidatePath("/work");
+  if (subpath) revalidatePath(subpath);
+}
 
 export async function createProjectAction(input: z.infer<typeof projectSchema>) {
   const dbUser = await requireDbUser();
   const parsed = projectSchema.safeParse(input);
   if (!parsed.success) return null;
-  const project = await prisma.project.create({ data: { userId: dbUser.id, ...parsed.data } });
+  const { deadline, ...rest } = parsed.data;
+  const project = await prisma.project.create({
+    data: { userId: dbUser.id, ...rest, deadline: deadline ? new Date(deadline) : null },
+  });
   revalidateTasks();
+  revalidateWork();
+  return project;
+}
+
+const projectUpdateSchema = projectSchema.partial();
+
+export async function updateProjectAction(projectId: string, input: z.infer<typeof projectUpdateSchema>) {
+  const dbUser = await requireDbUser();
+  const parsed = projectUpdateSchema.safeParse(input);
+  if (!parsed.success) return null;
+  const { deadline, ...rest } = parsed.data;
+
+  const project = await prisma.project.updateMany({
+    where: { id: projectId, userId: dbUser.id },
+    data: { ...rest, ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}) },
+  });
+  revalidateTasks();
+  revalidateWork(`/work/${projectId}`);
   return project;
 }
 
@@ -130,6 +166,7 @@ export async function archiveProjectAction(projectId: string) {
   const dbUser = await requireDbUser();
   await prisma.project.updateMany({ where: { id: projectId, userId: dbUser.id }, data: { archived: true } });
   revalidateTasks();
+  revalidateWork();
 }
 
 export async function deleteProjectAction(projectId: string) {
@@ -138,6 +175,7 @@ export async function deleteProjectAction(projectId: string) {
   // only unlinks it, never deletes the tasks in it.
   await prisma.project.deleteMany({ where: { id: projectId, userId: dbUser.id } });
   revalidateTasks();
+  revalidateWork();
 }
 
 // ---------- Comments ----------

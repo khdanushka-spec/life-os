@@ -38,6 +38,9 @@ model User {
 
   tasks             Task[]
   projects          Project[]
+  clients           Client[]
+  meetings          Meeting[]
+  workDocuments     WorkDocument[]
   comments          Comment[]
   quickNote         QuickNote?
   taskAiCaches      TaskAiCache[]
@@ -98,19 +101,114 @@ enum EnergyLevel {
   DEEP_FOCUS
 }
 
-model Project {
+enum ProjectKind {
+  PERSONAL
+  WORK
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+// Per-user contact for Work projects - name-only records are fine (not
+// every client needs full CRM detail), archived rather than deleted so
+// past projects keep a working client reference.
+model Client {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
-  color     String
+  company   String?
+  email     String?
+  phone     String?
+  notes     String?
   archived  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tasks Task[]
+  projects  Project[]
+  meetings  Meeting[]
+  documents WorkDocument[]
 
   @@index([userId, archived])
+}
+
+// The same Project already used by Tasks, extended with Work-specific
+// fields rather than a parallel WorkProject model - kind distinguishes a
+// personal Tasks-module project from one that shows up in the Work
+// dashboard, so both modules share one project/task system instead of
+// fragmenting into two.
+model Project {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String        @db.Uuid
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  color       String
+  kind        ProjectKind   @default(PERSONAL)
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  deadline    DateTime?     @db.Date
+  budget      Decimal?      @db.Decimal(14, 2)
+  clientId    String?       @db.Uuid
+  client      Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  archived    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tasks     Task[]
+  meetings  Meeting[]
+  documents WorkDocument[]
+
+  @@index([userId, archived])
+  @@index([userId, kind])
+}
+
+// A logged meeting, not a calendar invite - no calendar integration
+// exists in this app yet, so this is a record of what happened/will
+// happen rather than a scheduling system.
+model Meeting {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  projectId       String?   @db.Uuid
+  project         Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  clientId        String?   @db.Uuid
+  client          Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  startTime       DateTime
+  durationMinutes Int?
+  location        String?
+  attendees       String[]  @default([])
+  notes           String?
+  completed       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId, startTime])
+}
+
+// Lightweight document record (title + optional external link), not a
+// file upload - real file storage is deliberately deferred to the future
+// Knowledge Vault phase; this just tracks "where the document lives".
+model WorkDocument {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  url         String?
+  projectId   String?  @db.Uuid
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  clientId    String?  @db.Uuid
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  tags        String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // descriptionJson/descriptionText mirror JournalEntry's contentJson/
