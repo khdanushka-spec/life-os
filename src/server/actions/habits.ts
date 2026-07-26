@@ -84,14 +84,14 @@ function formDataToHabitInput(formData: FormData) {
     customDays: formData.getAll("customDays"),
     goalType: formData.get("goalType") || undefined,
     targetCount: formData.get("targetCount") || undefined,
-    targetUnit: formData.get("targetUnit"),
+    targetUnit: formData.get("targetUnit") || undefined,
     estimatedMinutes: formData.get("estimatedMinutes") || undefined,
     difficulty: formData.get("difficulty") || undefined,
     priority: formData.get("priority") || undefined,
     motivation: formData.get("motivation"),
     reward: formData.get("reward"),
     reminderEnabled: formData.get("reminderEnabled"),
-    reminderTime: formData.get("reminderTime"),
+    reminderTime: formData.get("reminderTime") || undefined,
     reminderSound: formData.get("reminderSound"),
   };
 }
