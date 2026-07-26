@@ -9,6 +9,7 @@ import { computeNetWorth, decToNumber, formatCurrency, occurrencesInRange } from
 import { PRIORITY_META } from "@/lib/tasks";
 import { PROJECT_STATUS_META } from "@/lib/work";
 import { MEDICAL_RECORD_TYPE_META } from "@/lib/health";
+import { COURSE_STATUS_META, BOOK_STATUS_META } from "@/lib/learning";
 
 export async function POST(req: Request) {
   const dbUser = await getDbUser();
@@ -188,9 +189,40 @@ export async function POST(req: Request) {
         .join("\n")
     : "No medical follow-ups due in the next 7 days.";
 
+  const [recentStudyLogs, activeCourses, activeBooks] = await Promise.all([
+    prisma.studyLog.findMany({ where: { userId: dbUser.id, date: { gte: weekAgo } }, orderBy: { date: "asc" } }),
+    prisma.course.findMany({ where: { userId: dbUser.id, status: "IN_PROGRESS" }, orderBy: { updatedAt: "desc" }, take: 15 }),
+    prisma.book.findMany({ where: { userId: dbUser.id, status: "READING" }, orderBy: { updatedAt: "desc" }, take: 15 }),
+  ]);
+
+  const studyLogSummary = recentStudyLogs.length
+    ? recentStudyLogs
+        .map((l) => {
+          const bits = [
+            l.minutesStudied != null ? `${l.minutesStudied} min` : null,
+            l.focusScore != null ? `focus ${l.focusScore}/5` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          return bits ? `- ${l.date.toDateString()}: ${bits}` : null;
+        })
+        .filter(Boolean)
+        .join("\n") || "No study sessions logged this week."
+    : "No study sessions logged this week.";
+
+  const coursesSummary = activeCourses.length
+    ? activeCourses.map((c) => `- "${c.title}" [${COURSE_STATUS_META[c.status].label}] - ${c.progressPercent}% complete`).join("\n")
+    : "No courses in progress.";
+
+  const booksSummary = activeBooks.length
+    ? activeBooks
+        .map((b) => `- "${b.title}"${b.author ? ` by ${b.author}` : ""} [${BOOK_STATUS_META[b.status].label}]`)
+        .join("\n")
+    : "No books currently being read.";
+
   const system = `You are Aura Brain inside AURA OS, a calm, AI-first personal life-management app. Be concise, warm, and direct - this is a personal assistant, not a customer support bot.
 
-You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), and health (daily check-ins, workouts, medical follow-ups). Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
+You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), health (daily check-ins, workouts, medical follow-ups), and learning (study sessions, courses, books). Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
 
 CRITICAL for finance: only ever state the numbers given to you below. Never estimate, guess, or invent a dollar figure, balance, or trend that isn't explicitly present in this context.
 
@@ -224,7 +256,16 @@ Their workouts this week:
 ${workoutsSummary}
 
 Their upcoming medical follow-ups (next 7 days):
-${followUpsSummary}`;
+${followUpsSummary}
+
+Their study sessions this week:
+${studyLogSummary}
+
+Their courses in progress:
+${coursesSummary}
+
+Their books currently reading:
+${booksSummary}`;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 

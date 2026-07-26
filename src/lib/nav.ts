@@ -30,7 +30,7 @@ export const navItems: NavItem[] = [
   { title: "Aura Brain", href: "/ai", icon: Sparkles },
   { title: "Work", href: "/work", icon: Briefcase },
   { title: "Health", href: "/health", icon: HeartPulse },
-  { title: "Learning", href: "/learning", icon: GraduationCap, disabled: true },
+  { title: "Learning", href: "/learning", icon: GraduationCap },
   { title: "Family", href: "/family", icon: Users, disabled: true },
   { title: "Travel", href: "/travel", icon: Plane, disabled: true },
   { title: "Knowledge Vault", href: "/vault", icon: BookOpen, disabled: true },

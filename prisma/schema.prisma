@@ -70,6 +70,12 @@ model User {
   financialAiCaches FinancialAiCache[]
   financialReports  FinancialReport[]
   sessions          Session[]
+  studyLogs         StudyLog[]
+  courses           Course[]
+  books             Book[]
+  certificates      Certificate[]
+  learningAiCaches  LearningAiCache[]
+  learningReports   LearningReport[]
 }
 
 // DB-backed sessions for locally-authenticated admin users. id stores a
@@ -178,22 +184,22 @@ model Project {
 // exists in this app yet, so this is a record of what happened/will
 // happen rather than a scheduling system.
 model Meeting {
-  id              String    @id @default(uuid()) @db.Uuid
-  userId          String    @db.Uuid
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title           String
-  projectId       String?   @db.Uuid
-  project         Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  clientId        String?   @db.Uuid
-  client          Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId       String?  @db.Uuid
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  clientId        String?  @db.Uuid
+  client          Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
   startTime       DateTime
   durationMinutes Int?
   location        String?
-  attendees       String[]  @default([])
+  attendees       String[] @default([])
   notes           String?
-  completed       Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  completed       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([userId, startTime])
 }
@@ -253,18 +259,18 @@ model WorkReport {
 // medical appointment. All fields are nullable since a day can log just
 // one or two of them.
 model DailyHealthLog {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @db.Uuid
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date            DateTime @db.Date
-  weightKg        Decimal? @db.Decimal(5, 2)
-  waterMl         Int?
-  sleepHours      Decimal? @db.Decimal(3, 1)
-  sleepQuality    Int? // 1-5
-  wellbeingScore  Int? // 1-10
-  note            String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @db.Date
+  weightKg       Decimal? @db.Decimal(5, 2)
+  waterMl        Int?
+  sleepHours     Decimal? @db.Decimal(3, 1)
+  sleepQuality   Int? // 1-5
+  wellbeingScore Int? // 1-10
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([userId, date])
 }
@@ -323,17 +329,17 @@ enum MedicalRecordType {
 // Vault phase as Work's documents; this is a lightweight record of what
 // happened/is due, not a document store.
 model MedicalRecord {
-  id            String            @id @default(uuid()) @db.Uuid
-  userId        String            @db.Uuid
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type          MedicalRecordType
-  title         String
-  provider      String?
-  notes         String?
-  date          DateTime          @db.Date
-  followUpDate  DateTime?         @db.Date
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id           String            @id @default(uuid()) @db.Uuid
+  userId       String            @db.Uuid
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         MedicalRecordType
+  title        String
+  provider     String?
+  notes        String?
+  date         DateTime          @db.Date
+  followUpDate DateTime?         @db.Date
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@index([userId, date])
 }
@@ -863,6 +869,123 @@ model FinancialAiCache {
 // User-triggered daily/weekly/monthly/yearly report. summary shape is
 // enforced by a Zod schema at the call site, same as JournalReport.
 model FinancialReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
+}
+
+// One row per user per day - a single quick check-in (minutes studied,
+// how focused it felt), same "one row, not N independent events" shape
+// as DailyHealthLog.
+model StudyLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @db.Date
+  minutesStudied Int?
+  focusScore     Int? // 1-5, how focused/productive the session felt
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, date])
+}
+
+enum CourseStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+}
+
+model Course {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @db.Uuid
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  provider        String?
+  status          CourseStatus @default(NOT_STARTED)
+  progressPercent Int          @default(0)
+  startedAt       DateTime?    @db.Date
+  completedAt     DateTime?    @db.Date
+  url             String?
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([userId, status])
+}
+
+enum BookStatus {
+  WANT_TO_READ
+  READING
+  FINISHED
+  ABANDONED
+}
+
+// A lightweight reading log (title/author/progress/rating) - not a full
+// library catalog with editions/ISBNs, same "log what happened, don't
+// model the whole domain" scope as Health's NutritionEntry.
+model Book {
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String     @db.Uuid
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  author      String?
+  status      BookStatus @default(WANT_TO_READ)
+  currentPage Int?
+  totalPages  Int?
+  rating      Int? // 1-5, set once finished
+  startedAt   DateTime?  @db.Date
+  finishedAt  DateTime?  @db.Date
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId, status])
+}
+
+// No file attachments (credential PDFs) - same deliberate deferral to the
+// future Knowledge Vault phase as Work's documents and Health's medical
+// records; expiryDate drives the same "upcoming" surfacing pattern as
+// MedicalRecord.followUpDate.
+model Certificate {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  issuer        String?
+  issueDate     DateTime  @db.Date
+  expiryDate    DateTime? @db.Date
+  credentialUrl String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, issueDate])
+}
+
+model LearningAiCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  kind      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, kind])
+}
+
+// User-triggered daily/weekly/monthly/yearly report, same pattern as
+// HealthReport/WorkReport.
+model LearningReport {
   id          String       @id @default(uuid()) @db.Uuid
   userId      String       @db.Uuid
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
