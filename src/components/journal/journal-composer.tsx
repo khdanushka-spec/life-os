@@ -127,17 +127,23 @@ export function JournalComposer({
         tags,
         writingSeconds: currentWritingSeconds(),
       });
-    } catch {
+    } catch (err) {
+      console.error("Journal autosave failed:", err);
       setStatus("error");
       return;
     }
-    if (result) {
-      setEntryId(result.id);
-      setStatus("saved");
-      router.refresh();
-    } else {
+    if ("error" in result) {
+      if (result.error === "unauthenticated") {
+        router.push("/login");
+        return;
+      }
+      console.error("Journal autosave rejected:", result.error);
       setStatus("error");
+      return;
     }
+    setEntryId(result.id);
+    setStatus("saved");
+    router.refresh();
   }
 
   // Any structured field (mood/energy/gratitude/tags) also triggers the

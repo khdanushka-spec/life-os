@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireDbUser } from "@/server/db-user";
+import { requireDbUser, getDbUser } from "@/server/db-user";
 import { brisbaneToday } from "@/lib/date";
 import { Mood, type ReportPeriod } from "@/generated/prisma/client";
 import {
@@ -31,10 +31,23 @@ export type SaveDraftInput = z.infer<typeof draftSchema>;
 // Upserts the entry being actively edited: first call (no id) creates the
 // row and returns its id so the client keeps saving into the same row on
 // subsequent debounced calls.
-export async function saveDraftEntryAction(input: SaveDraftInput): Promise<{ id: string } | null> {
-  const dbUser = await requireDbUser();
+//
+// Uses getDbUser() (not requireDbUser()) deliberately - this action is
+// invoked directly from client code on a debounced autosave timer, not
+// via a <form action>. requireDbUser()'s redirect() throw must propagate
+// untouched to work (Next.js requires calling it outside any try/catch),
+// but the composer wraps this call in its own try/catch to manage save
+// status, which silently swallows a thrown redirect - the user was left
+// staring at a permanent "Couldn't save" with no way out and no error
+// logged anywhere. Returning a plain { error } lets the caller notice an
+// expired session and navigate itself instead.
+export async function saveDraftEntryAction(
+  input: SaveDraftInput,
+): Promise<{ id: string } | { error: "unauthenticated" | "invalid" }> {
+  const dbUser = await getDbUser();
+  if (!dbUser) return { error: "unauthenticated" };
   const parsed = draftSchema.safeParse(input);
-  if (!parsed.success) return null;
+  if (!parsed.success) return { error: "invalid" };
   const { id, ...data } = parsed.data;
 
   const payload = {
