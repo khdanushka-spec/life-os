@@ -10,6 +10,7 @@ import { PRIORITY_META } from "@/lib/tasks";
 import { PROJECT_STATUS_META } from "@/lib/work";
 import { MEDICAL_RECORD_TYPE_META } from "@/lib/health";
 import { COURSE_STATUS_META, BOOK_STATUS_META } from "@/lib/learning";
+import { daysUntilAnnualDate, FAMILY_EVENT_TYPE_META, GIFT_IDEA_STATUS_META } from "@/lib/family";
 
 export async function POST(req: Request) {
   const dbUser = await getDbUser();
@@ -220,9 +221,39 @@ export async function POST(req: Request) {
         .join("\n")
     : "No books currently being read.";
 
+  const thirtyDaysAhead = new Date(now.getTime() + 30 * 86_400_000);
+  const [membersWithBirthday, upcomingFamilyEvents, openGiftIdeas] = await Promise.all([
+    prisma.familyMember.findMany({ where: { userId: dbUser.id, archived: false, birthday: { not: null } } }),
+    prisma.familyEvent.findMany({
+      where: { userId: dbUser.id, date: { gte: now, lt: thirtyDaysAhead } },
+      include: { member: true },
+      orderBy: { date: "asc" },
+    }),
+    prisma.giftIdea.findMany({ where: { userId: dbUser.id, status: "IDEA" }, include: { member: true }, take: 20 }),
+  ]);
+
+  const upcomingBirthdaysSummary = membersWithBirthday
+    .map((m) => ({ name: m.name, days: daysUntilAnnualDate(m.birthday!, now) }))
+    .filter((b) => b.days <= 30)
+    .sort((a, b) => a.days - b.days)
+    .map((b) => `- ${b.name} in ${b.days} day${b.days === 1 ? "" : "s"}`)
+    .join("\n") || "No birthdays in the next 30 days.";
+
+  const familyEventsSummary = upcomingFamilyEvents.length
+    ? upcomingFamilyEvents
+        .map((e) => `- "${e.title}" [${FAMILY_EVENT_TYPE_META[e.type].label}] on ${e.date.toDateString()}${e.member ? ` (${e.member.name})` : ""}`)
+        .join("\n")
+    : "No events in the next 30 days.";
+
+  const giftIdeasSummary = openGiftIdeas.length
+    ? openGiftIdeas
+        .map((g) => `- ${g.title} for ${g.member.name}${g.occasion ? ` (${g.occasion})` : ""} [${GIFT_IDEA_STATUS_META[g.status].label}]`)
+        .join("\n")
+    : "No open gift ideas.";
+
   const system = `You are Aura Brain inside AURA OS, a calm, AI-first personal life-management app. Be concise, warm, and direct - this is a personal assistant, not a customer support bot.
 
-You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), health (daily check-ins, workouts, medical follow-ups), and learning (study sessions, courses, books). Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
+You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), health (daily check-ins, workouts, medical follow-ups), learning (study sessions, courses, books), and family (birthdays, events, gift ideas). Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
 
 CRITICAL for finance: only ever state the numbers given to you below. Never estimate, guess, or invent a dollar figure, balance, or trend that isn't explicitly present in this context.
 
@@ -265,7 +296,16 @@ Their courses in progress:
 ${coursesSummary}
 
 Their books currently reading:
-${booksSummary}`;
+${booksSummary}
+
+Their upcoming family birthdays (next 30 days):
+${upcomingBirthdaysSummary}
+
+Their upcoming family events (next 30 days):
+${familyEventsSummary}
+
+Their open gift ideas (not yet purchased):
+${giftIdeasSummary}`;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 

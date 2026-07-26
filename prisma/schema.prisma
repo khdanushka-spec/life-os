@@ -76,6 +76,12 @@ model User {
   certificates      Certificate[]
   learningAiCaches  LearningAiCache[]
   learningReports   LearningReport[]
+  familyMembers     FamilyMember[]
+  familyEvents      FamilyEvent[]
+  giftIdeas         GiftIdea[]
+  familyDocuments   FamilyDocument[]
+  familyAiCaches    FamilyAiCache[]
+  familyReports     FamilyReport[]
 }
 
 // DB-backed sessions for locally-authenticated admin users. id stores a
@@ -986,6 +992,128 @@ model LearningAiCache {
 // User-triggered daily/weekly/monthly/yearly report, same pattern as
 // HealthReport/WorkReport.
 model LearningReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
+}
+
+// The person, not an event - birthday lives here (one date, reused to
+// derive "upcoming birthdays" rather than duplicated as a recurring
+// FamilyEvent row). relationship is freeform text with UI-suggested
+// presets, same "log what happened, don't model the whole domain"
+// scope as Workout.type.
+model FamilyMember {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String?
+  birthday     DateTime? @db.Date
+  photoUrl     String?
+  notes        String?
+  archived     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  events    FamilyEvent[]
+  giftIdeas GiftIdea[]
+  documents FamilyDocument[]
+
+  @@index([userId, archived])
+}
+
+// BIRTHDAY is deliberately not a variant here - it's derived from
+// FamilyMember.birthday instead, so a birthday is never entered twice.
+enum FamilyEventType {
+  ANNIVERSARY
+  HOLIDAY
+  GATHERING
+  OTHER
+}
+
+// A logged/planned event, not a calendar invite - same scope as Work's
+// Meeting (no calendar integration exists in this app yet).
+model FamilyEvent {
+  id        String          @id @default(uuid()) @db.Uuid
+  userId    String          @db.Uuid
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  type      FamilyEventType @default(OTHER)
+  date      DateTime
+  memberId  String?         @db.Uuid
+  member    FamilyMember?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  location  String?
+  notes     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId, date])
+}
+
+enum GiftIdeaStatus {
+  IDEA
+  PURCHASED
+  GIVEN
+}
+
+model GiftIdea {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberId  String         @db.Uuid
+  member    FamilyMember   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  title     String
+  occasion  String?
+  price     Decimal?       @db.Decimal(10, 2)
+  url       String?
+  status    GiftIdeaStatus @default(IDEA)
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([userId, memberId])
+}
+
+// Lightweight document record (title + optional external link), not a
+// file upload - same deliberate deferral to the future Knowledge Vault
+// phase as Work's documents and Health's medical records.
+model FamilyDocument {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String        @db.Uuid
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  url         String?
+  memberId    String?       @db.Uuid
+  member      FamilyMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  tags        String[]      @default([])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId])
+}
+
+model FamilyAiCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  kind      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, kind])
+}
+
+// User-triggered daily/weekly/monthly/yearly report, same pattern as
+// WorkReport/HealthReport/LearningReport.
+model FamilyReport {
   id          String       @id @default(uuid()) @db.Uuid
   userId      String       @db.Uuid
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
