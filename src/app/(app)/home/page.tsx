@@ -1,15 +1,8 @@
 import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { CircularProgress } from "@/components/circular-progress";
-import { Sparkles, Cloud, Clock, CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ListChecks, CalendarClock } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
@@ -21,7 +14,11 @@ import { computeFocusScore, estimateWorkloadMinutes, buildSmartTimeline, type Sm
 import { computeProjectProgress } from "@/lib/work";
 import { computeWellnessScore } from "@/lib/health";
 import { computeLearningScore } from "@/lib/learning";
-import { BrisbaneClock } from "@/components/brisbane-clock";
+import { getBrisbaneWeather, type Weather } from "@/lib/weather";
+import { HomeHero } from "@/components/home/home-hero";
+import { MomentumRings } from "@/components/home/momentum-rings";
+import { AiSuggestionsCard } from "@/components/home/ai-suggestions-card";
+import { EmptyState } from "@/components/empty-state";
 import type { Task } from "@/generated/prisma/client";
 
 const mockFocusItems = [
@@ -60,24 +57,36 @@ async function getDashboardData(): Promise<{
   name: string;
   tasks: Task[] | null;
   habitsPercent: number | null;
+  habitsPercentYesterday: number | null;
   financePercent: number | null;
   tasksPercent: number | null;
   workPercent: number | null;
   healthPercent: number | null;
   learningPercent: number | null;
+  tasksDueToday: number;
+  tasksCompletedToday: number;
+  tasksOverdue: number;
   timeline: SmartTimelineBuckets | null;
+  weather: Weather | null;
 }> {
+  const weather = await getBrisbaneWeather();
+
   if (!isSupabaseConfigured()) {
     return {
       name: "there",
       tasks: null,
       habitsPercent: null,
+      habitsPercentYesterday: null,
       financePercent: null,
       tasksPercent: null,
       workPercent: null,
       healthPercent: null,
       learningPercent: null,
+      tasksDueToday: 0,
+      tasksCompletedToday: 0,
+      tasksOverdue: 0,
       timeline: null,
+      weather,
     };
   }
 
@@ -121,14 +130,24 @@ async function getDashboardData(): Promise<{
     estimatedMinutesToday: estimateWorkloadMinutes(dueTodayTasks),
   }).score;
 
-  const habits = await prisma.habit.findMany({
-    where: { userId: dbUser.id, archived: false },
-    include: { logs: { where: { date: new Date(todayDateKey()) } } },
-  });
+  const yesterdayDateKey = brisbaneDateKey(new Date(Date.now() - 86_400_000));
+  const [habits, habitsYesterday] = await Promise.all([
+    prisma.habit.findMany({
+      where: { userId: dbUser.id, archived: false },
+      include: { logs: { where: { date: new Date(todayDateKey()) } } },
+    }),
+    prisma.habit.findMany({
+      where: { userId: dbUser.id, archived: false },
+      include: { logs: { where: { date: new Date(yesterdayDateKey) } } },
+    }),
+  ]);
   const habitsPercent = habits.length
     ? Math.round(
         (habits.filter((h) => h.logs.length > 0).length / habits.length) * 100,
       )
+    : null;
+  const habitsPercentYesterday = habitsYesterday.length
+    ? Math.round((habitsYesterday.filter((h) => h.logs.length > 0).length / habitsYesterday.length) * 100)
     : null;
 
   const monthStart = startOfMonth(new Date());
@@ -200,7 +219,22 @@ async function getDashboardData(): Promise<{
       : null;
 
   const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
-  return { name, tasks, habitsPercent, financePercent, tasksPercent, workPercent, healthPercent, learningPercent, timeline };
+  return {
+    name,
+    tasks,
+    habitsPercent,
+    habitsPercentYesterday,
+    financePercent,
+    tasksPercent,
+    workPercent,
+    healthPercent,
+    learningPercent,
+    tasksDueToday: dueTodayTasks.length,
+    tasksCompletedToday: completedTodayTasks,
+    tasksOverdue: overdueCount,
+    timeline,
+    weather,
+  };
 }
 
 const timelineSections = [
@@ -211,8 +245,22 @@ const timelineSections = [
 ] as const;
 
 export default async function HomePage() {
-  const { name, tasks, habitsPercent, financePercent, tasksPercent, workPercent, healthPercent, learningPercent, timeline } =
-    await getDashboardData();
+  const {
+    name,
+    tasks,
+    habitsPercent,
+    habitsPercentYesterday,
+    financePercent,
+    tasksPercent,
+    workPercent,
+    healthPercent,
+    learningPercent,
+    tasksDueToday,
+    tasksCompletedToday,
+    tasksOverdue,
+    timeline,
+    weather,
+  } = await getDashboardData();
   // Brisbane's date, not the server's (Vercel functions run UTC) - keeps
   // "today" in sync with the Smart Timeline's own Brisbane day boundary.
   const today = new Date().toLocaleDateString("en-AU", {
@@ -222,34 +270,35 @@ export default async function HomePage() {
     day: "numeric",
   });
 
+  const habitsTrend =
+    habitsPercent != null && habitsPercentYesterday != null ? habitsPercent - habitsPercentYesterday : null;
+
+  const momentumItems = momentum.map((m) => {
+    let value = m.value;
+    let trend: number | null = null;
+    if (m.label === "Tasks" && tasksPercent !== null) value = tasksPercent;
+    if (m.label === "Habits" && habitsPercent !== null) {
+      value = habitsPercent;
+      trend = habitsTrend;
+    }
+    if (m.label === "Finance" && financePercent !== null) value = financePercent;
+    if (m.label === "Work" && workPercent !== null) value = workPercent;
+    if (m.label === "Health" && healthPercent !== null) value = healthPercent;
+    if (m.label === "Learning" && learningPercent !== null) value = learningPercent;
+    return { label: m.label, value, trend };
+  });
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-4 md:p-6">
-      {/* Morning Briefing */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold">
-            {greeting()}, {name}.
-          </CardTitle>
-          <CardDescription className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="size-3.5" /> {today}, <BrisbaneClock />
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Cloud className="size-3.5" /> 22°C, partly cloudy
-            </span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm">
-            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
-            <p className="text-muted-foreground">
-              You have 3 things that need attention today, and one clear
-              90-minute block to make real progress on Phase 1. Nothing else
-              is urgent — take it steady.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <HomeHero
+        greetingWord={greeting()}
+        name={name}
+        dateLabel={today}
+        weather={weather}
+        tasksDueToday={tasksDueToday}
+        tasksCompletedToday={tasksCompletedToday}
+        tasksOverdue={tasksOverdue}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Today's Focus */}
@@ -263,21 +312,25 @@ export default async function HomePage() {
               mockFocusItems.map((item) => (
                 <div
                   key={item.title}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
                 >
                   <span className="text-sm">{item.title}</span>
                   <Badge variant="secondary">{item.due}</Badge>
                 </div>
               ))}
             {tasks?.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Nothing urgent — you&apos;re all caught up.
-              </p>
+              <EmptyState
+                icon={ListChecks}
+                title="All caught up"
+                description="Nothing urgent on your plate right now."
+                action={{ label: "Add a task", href: "/tasks" }}
+                className="py-8"
+              />
             )}
             {tasks?.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
               >
                 <span className="text-sm">{task.title}</span>
                 {task.dueDate && (
@@ -285,7 +338,7 @@ export default async function HomePage() {
                 )}
               </div>
             ))}
-            {tasks !== null && (
+            {tasks !== null && tasks.length > 0 && (
               <Link
                 href="/tasks"
                 className={buttonVariants({
@@ -313,9 +366,13 @@ export default async function HomePage() {
             )}
             {timeline &&
               Object.values(timeline).every((items) => items.length === 0) && (
-                <p className="text-sm text-muted-foreground">
-                  Nothing scheduled for today yet.
-                </p>
+                <EmptyState
+                  icon={CalendarClock}
+                  title="Nothing scheduled yet"
+                  description="Tasks with a due date today will show up here."
+                  action={{ label: "Plan your day", href: "/tasks" }}
+                  className="py-8"
+                />
               )}
             {timeline &&
               timelineSections.map(({ key, label }) => {
@@ -358,45 +415,9 @@ export default async function HomePage() {
         </Card>
       </div>
 
-      {/* Daily Momentum */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Daily Momentum</CardTitle>
-          <CardDescription>How today is tracking, area by area</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap justify-around gap-6">
-          {momentum.map((m) => {
-            let value = m.value;
-            if (m.label === "Tasks" && tasksPercent !== null) value = tasksPercent;
-            if (m.label === "Habits" && habitsPercent !== null) value = habitsPercent;
-            if (m.label === "Finance" && financePercent !== null) value = financePercent;
-            if (m.label === "Work" && workPercent !== null) value = workPercent;
-            if (m.label === "Health" && healthPercent !== null) value = healthPercent;
-            if (m.label === "Learning" && learningPercent !== null) value = learningPercent;
-            return <CircularProgress key={m.label} value={value} label={m.label} />;
-          })}
-        </CardContent>
-      </Card>
+      <MomentumRings items={momentumItems} />
 
-      {/* AI Suggestions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" />
-            AI Suggestions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {suggestions.map((s) => (
-            <p
-              key={s}
-              className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground"
-            >
-              {s}
-            </p>
-          ))}
-        </CardContent>
-      </Card>
+      <AiSuggestionsCard suggestions={suggestions} />
     </div>
   );
 }
