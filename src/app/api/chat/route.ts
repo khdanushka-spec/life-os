@@ -11,6 +11,7 @@ import { PROJECT_STATUS_META } from "@/lib/work";
 import { MEDICAL_RECORD_TYPE_META } from "@/lib/health";
 import { COURSE_STATUS_META, BOOK_STATUS_META } from "@/lib/learning";
 import { daysUntilAnnualDate, FAMILY_EVENT_TYPE_META, GIFT_IDEA_STATUS_META } from "@/lib/family";
+import { TRIP_STATUS_META, BOOKING_TYPE_META } from "@/lib/travel";
 
 export async function POST(req: Request) {
   const dbUser = await getDbUser();
@@ -251,9 +252,30 @@ export async function POST(req: Request) {
         .join("\n")
     : "No open gift ideas.";
 
+  const upcomingTrips = await prisma.trip.findMany({
+    where: { userId: dbUser.id, status: { in: ["PLANNING", "UPCOMING", "ONGOING"] } },
+    include: { bookings: true, packingItems: true },
+    orderBy: { startDate: "asc" },
+  });
+
+  const tripsSummary = upcomingTrips.length
+    ? upcomingTrips
+        .map((t) => {
+          const packedCount = t.packingItems.filter((p) => p.packed).length;
+          const bits = [
+            `[${TRIP_STATUS_META[t.status].label}]`,
+            t.startDate ? `starts ${t.startDate.toDateString()}` : "no start date set",
+            t.bookings.length ? `${t.bookings.length} booking${t.bookings.length === 1 ? "" : "s"} (${t.bookings.map((b) => BOOKING_TYPE_META[b.type].label).join(", ")})` : "no bookings yet",
+            t.packingItems.length ? `packing ${packedCount}/${t.packingItems.length}` : "no packing list",
+          ];
+          return `- ${t.destination}${t.country ? `, ${t.country}` : ""} - ${bits.join(", ")}`;
+        })
+        .join("\n")
+    : "No trips currently planned.";
+
   const system = `You are Aura Brain inside AURA OS, a calm, AI-first personal life-management app. Be concise, warm, and direct - this is a personal assistant, not a customer support bot.
 
-You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), health (daily check-ins, workouts, medical follow-ups), learning (study sessions, courses, books), and family (birthdays, events, gift ideas). Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
+You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), health (daily check-ins, workouts, medical follow-ups), learning (study sessions, courses, books), family (birthdays, events, gift ideas), and travel (trips, bookings, packing). Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
 
 CRITICAL for finance: only ever state the numbers given to you below. Never estimate, guess, or invent a dollar figure, balance, or trend that isn't explicitly present in this context.
 
@@ -305,7 +327,10 @@ Their upcoming family events (next 30 days):
 ${familyEventsSummary}
 
 Their open gift ideas (not yet purchased):
-${giftIdeasSummary}`;
+${giftIdeasSummary}
+
+Their planned/upcoming trips:
+${tripsSummary}`;
 
   const { messages }: { messages: UIMessage[] } = await req.json();
 

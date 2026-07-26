@@ -36,52 +36,58 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tasks             Task[]
-  projects          Project[]
-  clients           Client[]
-  meetings          Meeting[]
-  workDocuments     WorkDocument[]
-  workAiCaches      WorkAiCache[]
-  workReports       WorkReport[]
-  dailyHealthLogs   DailyHealthLog[]
-  workouts          Workout[]
-  nutritionEntries  NutritionEntry[]
-  medicalRecords    MedicalRecord[]
-  healthAiCaches    HealthAiCache[]
-  healthReports     HealthReport[]
-  comments          Comment[]
-  quickNote         QuickNote?
-  taskAiCaches      TaskAiCache[]
-  taskReports       TaskReport[]
-  habits            Habit[]
-  habitCategories   HabitCategory[]
-  habitAchievements HabitAchievement[]
-  journalEntries    JournalEntry[]
-  journalAiCaches   JournalAiCache[]
-  journalReports    JournalReport[]
-  financialAccounts FinancialAccount[]
-  transactions      Transaction[]
-  recurringPayments RecurringPayment[]
-  budgets           Budget[]
-  savingsGoals      SavingsGoal[]
-  investments       Investment[]
-  assetsLiabilities AssetLiability[]
-  netWorthSnapshots NetWorthSnapshot[]
-  financialAiCaches FinancialAiCache[]
-  financialReports  FinancialReport[]
-  sessions          Session[]
-  studyLogs         StudyLog[]
-  courses           Course[]
-  books             Book[]
-  certificates      Certificate[]
-  learningAiCaches  LearningAiCache[]
-  learningReports   LearningReport[]
-  familyMembers     FamilyMember[]
-  familyEvents      FamilyEvent[]
-  giftIdeas         GiftIdea[]
-  familyDocuments   FamilyDocument[]
-  familyAiCaches    FamilyAiCache[]
-  familyReports     FamilyReport[]
+  tasks                Task[]
+  projects             Project[]
+  clients              Client[]
+  meetings             Meeting[]
+  workDocuments        WorkDocument[]
+  workAiCaches         WorkAiCache[]
+  workReports          WorkReport[]
+  dailyHealthLogs      DailyHealthLog[]
+  workouts             Workout[]
+  nutritionEntries     NutritionEntry[]
+  medicalRecords       MedicalRecord[]
+  healthAiCaches       HealthAiCache[]
+  healthReports        HealthReport[]
+  comments             Comment[]
+  quickNote            QuickNote?
+  taskAiCaches         TaskAiCache[]
+  taskReports          TaskReport[]
+  habits               Habit[]
+  habitCategories      HabitCategory[]
+  habitAchievements    HabitAchievement[]
+  journalEntries       JournalEntry[]
+  journalAiCaches      JournalAiCache[]
+  journalReports       JournalReport[]
+  financialAccounts    FinancialAccount[]
+  transactions         Transaction[]
+  recurringPayments    RecurringPayment[]
+  budgets              Budget[]
+  savingsGoals         SavingsGoal[]
+  investments          Investment[]
+  assetsLiabilities    AssetLiability[]
+  netWorthSnapshots    NetWorthSnapshot[]
+  financialAiCaches    FinancialAiCache[]
+  financialReports     FinancialReport[]
+  sessions             Session[]
+  studyLogs            StudyLog[]
+  courses              Course[]
+  books                Book[]
+  certificates         Certificate[]
+  learningAiCaches     LearningAiCache[]
+  learningReports      LearningReport[]
+  familyMembers        FamilyMember[]
+  familyEvents         FamilyEvent[]
+  giftIdeas            GiftIdea[]
+  familyDocuments      FamilyDocument[]
+  familyAiCaches       FamilyAiCache[]
+  familyReports        FamilyReport[]
+  trips                Trip[]
+  bookings             Booking[]
+  packingItems         PackingItem[]
+  wishlistDestinations WishlistDestination[]
+  travelAiCaches       TravelAiCache[]
+  travelReports        TravelReport[]
 }
 
 // DB-backed sessions for locally-authenticated admin users. id stores a
@@ -1114,6 +1120,126 @@ model FamilyAiCache {
 // User-triggered daily/weekly/monthly/yearly report, same pattern as
 // WorkReport/HealthReport/LearningReport.
 model FamilyReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @db.Uuid
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      ReportPeriod
+  periodStart DateTime     @db.Date
+  summary     Json
+  createdAt   DateTime     @default(now())
+
+  @@unique([userId, period, periodStart])
+}
+
+enum TripStatus {
+  PLANNING
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+// The trip container - like Work's Project. notes doubles as the place
+// for "travel memories" once a trip is COMPLETED, rather than a separate
+// model - same "don't model the whole domain" scope as elsewhere. No
+// photos - file storage is deliberately deferred everywhere in this app.
+model Trip {
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String     @db.Uuid
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destination String
+  country     String?
+  startDate   DateTime?  @db.Date
+  endDate     DateTime?  @db.Date
+  status      TripStatus @default(PLANNING)
+  budget      Decimal?   @db.Decimal(12, 2)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  bookings     Booking[]
+  packingItems PackingItem[]
+
+  @@index([userId, status])
+}
+
+enum BookingType {
+  FLIGHT
+  HOTEL
+  CAR_RENTAL
+  ACTIVITY
+  OTHER
+}
+
+// A logged reservation (flight/hotel/car/activity), not a live booking
+// integration - no such integration exists in this app, same scope as
+// Work's Meeting.
+model Booking {
+  id                 String      @id @default(uuid()) @db.Uuid
+  userId             String      @db.Uuid
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tripId             String      @db.Uuid
+  trip               Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  type               BookingType
+  title              String
+  provider           String?
+  confirmationNumber String?
+  startAt            DateTime?
+  endAt              DateTime?
+  cost               Decimal?    @db.Decimal(10, 2)
+  notes              String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([userId, tripId])
+}
+
+// A simple per-trip checklist item - not a packing-list template system.
+model PackingItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tripId    String   @db.Uuid
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  name      String
+  category  String?
+  packed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, tripId])
+}
+
+// Destinations not yet turned into a real Trip - a simple starred
+// backlog, not linked to any Trip row.
+model WishlistDestination {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destination String
+  country     String?
+  notes       String?
+  starred     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model TravelAiCache {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  kind      String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, kind])
+}
+
+// User-triggered daily/weekly/monthly/yearly report, same pattern as
+// FamilyReport/WorkReport/HealthReport/LearningReport.
+model TravelReport {
   id          String       @id @default(uuid()) @db.Uuid
   userId      String       @db.Uuid
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
