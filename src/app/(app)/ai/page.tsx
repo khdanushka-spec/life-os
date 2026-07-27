@@ -19,7 +19,7 @@ export default async function AiPage() {
   const resolved = await resolveAiModel();
 
   return (
-    <div className="mx-auto flex h-[calc(100svh-3.5rem)] max-w-2xl flex-col p-4 md:p-6">
+    <div className="mx-auto flex h-[calc(100svh-4rem)] max-w-2xl flex-col p-4 md:p-6">
       <Card className="flex flex-1 flex-col overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

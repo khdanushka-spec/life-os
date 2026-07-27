@@ -40,12 +40,17 @@ export function DesktopSidebar() {
       transition={transitionBase}
       className="hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex"
     >
-      <div className={cn("flex h-14 items-center gap-2 border-b border-sidebar-border px-4", collapsed && "justify-center px-0")}>
+      <div className={cn("flex h-16 items-center gap-2 border-b border-sidebar-border px-4", collapsed && "justify-center px-0")}>
         <div className="relative flex size-6 shrink-0 items-center justify-center">
           <div aria-hidden className="absolute inset-0 rounded-full bg-primary/20 blur-sm" />
           <Sparkles className="relative size-4 text-primary" />
         </div>
-        {!collapsed && <span className="text-sm font-semibold tracking-tight">AURA OS</span>}
+        {!collapsed && (
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm font-semibold tracking-tight">AURA OS</span>
+            <span className="text-[10px] text-sidebar-foreground/50">Your Life, Organized.</span>
+          </div>
+        )}
       </div>
 
       <SidebarNav collapsed={collapsed} />

@@ -11,6 +11,7 @@ import { CommandPalette } from "@/components/app-shell/command-palette";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -21,7 +22,7 @@ export function Topbar({ user, nickname }: { user: User | null; nickname: string
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-background/70 px-4 backdrop-blur-xl supports-backdrop-filter:bg-background/60">
+    <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-border bg-background/70 px-4 backdrop-blur-xl supports-backdrop-filter:bg-background/60">
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetTrigger
           render={<Button variant="ghost" size="icon" className="md:hidden" />}
@@ -35,6 +36,7 @@ export function Topbar({ user, nickname }: { user: User | null; nickname: string
               <Sparkles className="size-4 text-primary" />
               AURA OS
             </SheetTitle>
+            <SheetDescription>Your Life, Organized.</SheetDescription>
           </SheetHeader>
           <SidebarNav onNavigate={() => setNavOpen(false)} />
         </SheetContent>
