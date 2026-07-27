@@ -1,3 +1,5 @@
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, Flame, CalendarDays, PenLine, Smile, Zap } from "lucide-react";
 import { greeting } from "@/lib/greeting";

@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertCircle, CheckCircle2, ListChecks, Sparkles, Target, TrendingUp } from "lucide-react";
 import { greeting } from "@/lib/greeting";
 import { StatCard } from "@/components/stat-card";
