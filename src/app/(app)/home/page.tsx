@@ -69,9 +69,8 @@ async function getDashboardData(): Promise<{
   timeline: SmartTimelineBuckets | null;
   weather: Weather | null;
 }> {
-  const weather = await getBrisbaneWeather();
-
   if (!isSupabaseConfigured()) {
+    const weather = await getBrisbaneWeather();
     return {
       name: "there",
       tasks: null,
@@ -90,17 +89,47 @@ async function getDashboardData(): Promise<{
     };
   }
 
-  const dbUser = await requireDbUser();
-  const tasks = await prisma.task.findMany({
-    where: { userId: dbUser.id, status: { notIn: ["DONE", "SOMEDAY"] } },
-    orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
-    take: 3,
-  });
-
   const now = new Date();
   const todayStart = startOfBrisbaneDay(now);
   const todayEnd = new Date(todayStart.getTime() + 86_400_000);
-  const [dueTodayTasks, completedTodayTasks, todaysTasks] = await Promise.all([
+  const yesterdayDateKey = brisbaneDateKey(new Date(Date.now() - 86_400_000));
+  const monthStart = startOfMonth(now);
+  const todayKey = brisbaneDateKey();
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000);
+
+  // requireDbUser() must resolve before any of the user-scoped queries can
+  // run (they all filter by dbUser.id) - but weather doesn't depend on the
+  // user, so it can still run alongside the auth check instead of after it.
+  const [weather, dbUser] = await Promise.all([getBrisbaneWeather(), requireDbUser()]);
+
+  // All of these are independent reads for different life areas - fanning
+  // them out into one Promise.all (rather than awaiting section by section)
+  // turns ~15 sequential DB round trips into one, which matters a lot here
+  // since the DB round-trips dominate this page's load time.
+  const [
+    tasks,
+    dueTodayTasks,
+    completedTodayTasks,
+    todaysTasks,
+    overdueCount,
+    habits,
+    habitsYesterday,
+    budgets,
+    spend,
+    workProjects,
+    todayHealthLog,
+    recentHealthLogs,
+    workoutsThisWeek,
+    todayStudyLog,
+    studyLogsThisWeek,
+    inProgressCourses,
+    readingBooksCount,
+  ] = await Promise.all([
+    prisma.task.findMany({
+      where: { userId: dbUser.id, status: { notIn: ["DONE", "SOMEDAY"] } },
+      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+      take: 3,
+    }),
     prisma.task.findMany({
       where: { userId: dbUser.id, parentId: null, dueDate: { gte: todayStart, lt: todayEnd } },
     }),
@@ -118,20 +147,9 @@ async function getDashboardData(): Promise<{
         ],
       },
     }),
-  ]);
-  const overdueCount = await prisma.task.count({
-    where: { userId: dbUser.id, parentId: null, status: { notIn: ["DONE"] }, dueDate: { lt: todayStart } },
-  });
-  const timeline = buildSmartTimeline(todaysTasks, now);
-  const tasksPercent = computeFocusScore({
-    dueTodayCount: dueTodayTasks.length,
-    completedTodayCount: completedTodayTasks,
-    overdueCount,
-    estimatedMinutesToday: estimateWorkloadMinutes(dueTodayTasks),
-  }).score;
-
-  const yesterdayDateKey = brisbaneDateKey(new Date(Date.now() - 86_400_000));
-  const [habits, habitsYesterday] = await Promise.all([
+    prisma.task.count({
+      where: { userId: dbUser.id, parentId: null, status: { notIn: ["DONE"] }, dueDate: { lt: todayStart } },
+    }),
     prisma.habit.findMany({
       where: { userId: dbUser.id, archived: false },
       include: { logs: { where: { date: new Date(todayDateKey()) } } },
@@ -140,7 +158,37 @@ async function getDashboardData(): Promise<{
       where: { userId: dbUser.id, archived: false },
       include: { logs: { where: { date: new Date(yesterdayDateKey) } } },
     }),
+    prisma.budget.findMany({ where: { userId: dbUser.id, month: monthStart } }),
+    prisma.transaction.findMany({ where: { userId: dbUser.id, type: "EXPENSE", date: { gte: monthStart } } }),
+    prisma.project.findMany({
+      where: { userId: dbUser.id, kind: "WORK", archived: false, status: "ACTIVE" },
+      include: { tasks: true },
+    }),
+    prisma.dailyHealthLog.findUnique({
+      where: { userId_date: { userId: dbUser.id, date: new Date(`${todayKey}T00:00:00.000Z`) } },
+    }),
+    prisma.dailyHealthLog.findMany({
+      where: { userId: dbUser.id, date: { gte: weekAgo }, sleepHours: { not: null } },
+      orderBy: { date: "desc" },
+      take: 1,
+    }),
+    prisma.workout.count({ where: { userId: dbUser.id, performedAt: { gte: weekAgo } } }),
+    prisma.studyLog.findUnique({
+      where: { userId_date: { userId: dbUser.id, date: new Date(`${todayKey}T00:00:00.000Z`) } },
+    }),
+    prisma.studyLog.findMany({ where: { userId: dbUser.id, date: { gte: weekAgo } } }),
+    prisma.course.findMany({ where: { userId: dbUser.id, status: "IN_PROGRESS" } }),
+    prisma.book.count({ where: { userId: dbUser.id, status: "READING" } }),
   ]);
+
+  const timeline = buildSmartTimeline(todaysTasks, now);
+  const tasksPercent = computeFocusScore({
+    dueTodayCount: dueTodayTasks.length,
+    completedTodayCount: completedTodayTasks,
+    overdueCount,
+    estimatedMinutesToday: estimateWorkloadMinutes(dueTodayTasks),
+  }).score;
+
   const habitsPercent = habits.length
     ? Math.round(
         (habits.filter((h) => h.logs.length > 0).length / habits.length) * 100,
@@ -150,13 +198,8 @@ async function getDashboardData(): Promise<{
     ? Math.round((habitsYesterday.filter((h) => h.logs.length > 0).length / habitsYesterday.length) * 100)
     : null;
 
-  const monthStart = startOfMonth(new Date());
-  const budgets = await prisma.budget.findMany({ where: { userId: dbUser.id, month: monthStart } });
   let financePercent: number | null = null;
   if (budgets.length) {
-    const spend = await prisma.transaction.findMany({
-      where: { userId: dbUser.id, type: "EXPENSE", date: { gte: monthStart } },
-    });
     const spendByCategory: Record<string, number> = {};
     for (const t of spend) {
       spendByCategory[t.category] = (spendByCategory[t.category] ?? 0) + decToNumber(t.amount);
@@ -165,26 +208,10 @@ async function getDashboardData(): Promise<{
     financePercent = Math.round((underLimit / budgets.length) * 100);
   }
 
-  const workProjects = await prisma.project.findMany({
-    where: { userId: dbUser.id, kind: "WORK", archived: false, status: "ACTIVE" },
-    include: { tasks: true },
-  });
   const workPercent = workProjects.length
     ? Math.round(workProjects.reduce((sum, p) => sum + computeProjectProgress(p.tasks), 0) / workProjects.length)
     : null;
 
-  const todayKey = brisbaneDateKey();
-  const todayHealthLog = await prisma.dailyHealthLog.findUnique({
-    where: { userId_date: { userId: dbUser.id, date: new Date(`${todayKey}T00:00:00.000Z`) } },
-  });
-  const [recentHealthLogs, workoutsThisWeek] = await Promise.all([
-    prisma.dailyHealthLog.findMany({
-      where: { userId: dbUser.id, date: { gte: new Date(Date.now() - 7 * 86_400_000) }, sleepHours: { not: null } },
-      orderBy: { date: "desc" },
-      take: 1,
-    }),
-    prisma.workout.count({ where: { userId: dbUser.id, performedAt: { gte: new Date(Date.now() - 7 * 86_400_000) } } }),
-  ]);
   const healthPercent = todayHealthLog || recentHealthLogs.length || workoutsThisWeek
     ? computeWellnessScore({
         waterMl: todayHealthLog?.waterMl ?? null,
@@ -194,16 +221,6 @@ async function getDashboardData(): Promise<{
       })
     : null;
 
-  const todayStudyLog = await prisma.studyLog.findUnique({
-    where: { userId_date: { userId: dbUser.id, date: new Date(`${todayKey}T00:00:00.000Z`) } },
-  });
-  const [studyLogsThisWeek, inProgressCourses, readingBooksCount] = await Promise.all([
-    prisma.studyLog.findMany({
-      where: { userId: dbUser.id, date: { gte: new Date(Date.now() - 7 * 86_400_000) } },
-    }),
-    prisma.course.findMany({ where: { userId: dbUser.id, status: "IN_PROGRESS" } }),
-    prisma.book.count({ where: { userId: dbUser.id, status: "READING" } }),
-  ]);
   const studyDaysThisWeek = studyLogsThisWeek.filter((l) => l.minutesStudied != null && l.minutesStudied > 0).length;
   const avgCourseProgress = inProgressCourses.length
     ? inProgressCourses.reduce((sum, c) => sum + c.progressPercent, 0) / inProgressCourses.length

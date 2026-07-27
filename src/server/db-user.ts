@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +23,11 @@ function isUniqueConstraintError(error: unknown): boolean {
 // - Next.js can fire several page loads concurrently (Home/Tasks/Aura Brain
 //   all requesting at once on first login, as actually happened), so two
 //   requests can both decide "no row exists yet" and race to create one.
-async function resolveDbUserFromSession(): Promise<User | null> {
+// Every module page calls requireDbUser()/getDbUser() independently on top
+// of the (app) layout already calling it - cache() dedupes all of those
+// down to a single Supabase-auth + Prisma round trip per request instead of
+// repeating the full lookup on every layout+page pair.
+const resolveDbUserFromSession = cache(async (): Promise<User | null> => {
   if (!isSupabaseConfigured()) return null;
 
   const supabase = await createClient();
@@ -60,7 +65,7 @@ async function resolveDbUserFromSession(): Promise<User | null> {
     }
     throw error;
   }
-}
+});
 
 // For Server Components / Server Actions, where redirecting is the right
 // failure mode.

@@ -59,15 +59,30 @@ export default async function JournalPage({
   }
   const hasFilters = Boolean(params.q || params.mood || params.tag || params.from || params.to || params.date);
 
-  const [entries, allDateRows, todayEntry, weather] = await Promise.all([
-    prisma.journalEntry.findMany({ where, orderBy: { createdAt: "desc" }, take: 100 }),
-    prisma.journalEntry.findMany({ where: { userId }, select: { createdAt: true, contentText: true } }),
-    prisma.journalEntry.findFirst({
-      where: { userId, createdAt: dayRange(brisbaneDateKey()) },
-      orderBy: { createdAt: "desc" },
-    }),
-    getBrisbaneWeather(),
-  ]);
+  const weekStart = startOfWeek(new Date());
+  const monthStart = startOfMonth(new Date());
+
+  // None of these depend on each other's results (the two AI helpers only
+  // need userId, already known) - one Promise.all instead of three
+  // sequential ones removes two rounds of avoidable serialization.
+  const [entries, allDateRows, todayEntry, weather, reflection, insights, weeklyReportRow, monthlyReportRow] =
+    await Promise.all([
+      prisma.journalEntry.findMany({ where, orderBy: { createdAt: "desc" }, take: 100 }),
+      prisma.journalEntry.findMany({ where: { userId }, select: { createdAt: true, contentText: true } }),
+      prisma.journalEntry.findFirst({
+        where: { userId, createdAt: dayRange(brisbaneDateKey()) },
+        orderBy: { createdAt: "desc" },
+      }),
+      getBrisbaneWeather(),
+      getOrGenerateReflection(userId),
+      getOrGenerateInsights(userId),
+      prisma.journalReport.findUnique({
+        where: { userId_period_periodStart: { userId, period: "WEEK" as ReportPeriod, periodStart: weekStart } },
+      }),
+      prisma.journalReport.findUnique({
+        where: { userId_period_periodStart: { userId, period: "MONTH" as ReportPeriod, periodStart: monthStart } },
+      }),
+    ]);
 
   const dateKeys = new Set(allDateRows.map((e) => brisbaneDateKey(e.createdAt)));
   const streak = computeStreak(dateKeys);
@@ -82,22 +97,6 @@ export default async function JournalPage({
     .reduce((sum, e) => sum + wordCount(e.contentText), 0);
 
   const todayEnergy = todayEntry?.energyEvening ?? todayEntry?.energyAfternoon ?? todayEntry?.energyMorning ?? null;
-
-  const [reflection, insights] = await Promise.all([
-    getOrGenerateReflection(userId),
-    getOrGenerateInsights(userId),
-  ]);
-
-  const weekStart = startOfWeek(new Date());
-  const monthStart = startOfMonth(new Date());
-  const [weeklyReportRow, monthlyReportRow] = await Promise.all([
-    prisma.journalReport.findUnique({
-      where: { userId_period_periodStart: { userId, period: "WEEK" as ReportPeriod, periodStart: weekStart } },
-    }),
-    prisma.journalReport.findUnique({
-      where: { userId_period_periodStart: { userId, period: "MONTH" as ReportPeriod, periodStart: monthStart } },
-    }),
-  ]);
 
   const searchParamsForFilters: JournalSearchParams = params;
   const name = dbUser.username ?? dbUser.email?.split("@")[0] ?? "there";
