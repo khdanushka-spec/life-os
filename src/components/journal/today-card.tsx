@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, Flame } from "lucide-react";
+import { Sparkles, Flame, CalendarDays, PenLine, Smile, Zap } from "lucide-react";
 import { greeting } from "@/lib/greeting";
 import { moodMeta } from "@/lib/journal";
+import { StatCard } from "@/components/stat-card";
 import type { Mood } from "@/generated/prisma/client";
 
 export function TodayCard({
@@ -23,14 +24,6 @@ export function TodayCard({
 }) {
   const mood = moodMeta(todayMood);
 
-  const stats = [
-    { label: "Journal Streak", value: `${streak} ${streak === 1 ? "Day" : "Days"}`, icon: Flame },
-    { label: "Entries This Week", value: String(entriesThisWeek) },
-    { label: "Words Today", value: String(wordsToday) },
-    { label: "Mood", value: mood ? `${mood.emoji} ${mood.label}` : "Not logged" },
-    { label: "Energy", value: todayEnergy != null ? `${todayEnergy}/10` : "Not logged" },
-  ];
-
   return (
     <Card className="border-none bg-gradient-to-br from-card to-muted/40">
       <CardHeader>
@@ -40,15 +33,27 @@ export function TodayCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {stats.map((s) => (
-            <div key={s.label} className="rounded-xl border bg-background/60 p-3">
-              <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                {"icon" in s && s.icon && <s.icon className="size-3" />}
-                {s.label}
-              </p>
-              <p className="mt-0.5 text-sm font-medium">{s.value}</p>
-            </div>
-          ))}
+          <StatCard
+            icon={Flame}
+            label="Journal Streak"
+            value={streak}
+            suffix={streak === 1 ? " Day" : " Days"}
+            accent="bg-orange-500"
+          />
+          <StatCard icon={CalendarDays} label="Entries This Week" value={entriesThisWeek} accent="bg-sky-500" />
+          <StatCard icon={PenLine} label="Words Today" value={wordsToday} accent="bg-primary" />
+          <StatCard
+            icon={Smile}
+            label="Mood"
+            value={mood ? `${mood.emoji} ${mood.label}` : "Not logged"}
+            accent="bg-amber-500"
+          />
+          <StatCard
+            icon={Zap}
+            label="Energy"
+            value={todayEnergy != null ? `${todayEnergy}/10` : "Not logged"}
+            accent="bg-emerald-500"
+          />
         </div>
         {reflection && (
           <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm">
