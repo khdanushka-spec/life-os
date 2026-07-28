@@ -1,10 +1,11 @@
-import { streamText, convertToModelMessages, type UIMessage } from "ai";
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { resolveAiModel } from "@/lib/ai/providers";
 import { getDbUser } from "@/server/db-user";
 import { prisma } from "@/lib/prisma";
 import { todayDateKey } from "@/lib/habits";
 import { moodMeta } from "@/lib/journal";
-import { startOfMonth } from "@/lib/date";
+import { startOfMonth, brisbaneDateKey } from "@/lib/date";
+import { buildChatTools } from "@/lib/ai/chat-tools";
 import { computeNetWorth, decToNumber, formatCurrency, occurrencesInRange } from "@/lib/finance";
 import { PRIORITY_META } from "@/lib/tasks";
 import { PROJECT_STATUS_META } from "@/lib/work";
@@ -287,11 +288,24 @@ export async function POST(req: Request) {
   const recentVaultSummary = recentVaultItems.length ? recentVaultItems.map(formatVaultItem).join("\n") : "Nothing saved yet.";
   const favoritedVaultSummary = favoritedVaultItems.length ? favoritedVaultItems.map(formatVaultItem).join("\n") : "No favorited items.";
 
+  const todayBrisbane = brisbaneDateKey();
+  const todayLabel = new Date(`${todayBrisbane}T00:00:00.000Z`).toLocaleDateString("en-AU", {
+    timeZone: "Australia/Brisbane",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   const system = `You are Aura Brain inside AURA OS, a calm, AI-first personal life-management app. Be concise, warm, and direct - this is a personal assistant, not a customer support bot.
+
+Today's date (Brisbane time) is ${todayLabel}, i.e. ${todayBrisbane}. Resolve any relative date the user mentions ("tomorrow", "next Friday", "in 3 days") against this before using it.
 
 You currently only have visibility into the user's pending tasks, daily habits, recent journal entries, finances, work (projects, clients, meetings), health (daily check-ins, workouts, medical follow-ups), learning (study sessions, courses, books), family (birthdays, events, gift ideas), travel (trips, bookings, packing), and their knowledge vault (saved notes and links). You only see the most recent and favorited vault items below, not the full vault - if asked about something not listed, say you don't see it in what's shown to you rather than guessing. Don't claim to know about their calendar or other life areas - those modules don't exist yet. Never give medical advice on health data, only observations about their own logged patterns.
 
 CRITICAL for finance: only ever state the numbers given to you below. Never estimate, guess, or invent a dollar figure, balance, or trend that isn't explicitly present in this context.
+
+You can also take action on tasks directly, using the addTask and deleteTask tools - the user does not need to visit the Tasks page themselves. If they ask you to add, create, or remind them of a task, call addTask (don't just describe what you would do - actually call it). If they ask you to delete, remove, or cancel a task, call deleteTask. If deleteTask returns more than one candidate, list the matching titles and ask which one they meant instead of guessing. After a tool call finishes, confirm what actually happened in one short sentence, using only the tool's result - if addTask reports a projectNote (no matching project found), mention that plainly rather than pretending it was filed correctly. These tools only cover tasks right now - if asked to add/delete something in another area (habits, journal, finance, etc.), say that capability isn't available yet rather than attempting it.
 
 Their current pending tasks:
 ${taskSummary}
@@ -358,6 +372,11 @@ ${favoritedVaultSummary}`;
     model: resolved.model,
     system,
     messages: await convertToModelMessages(messages),
+    tools: buildChatTools(dbUser.id),
+    // Lets the model call a tool, see the result, then keep generating a
+    // confirmation message in the same turn - without this it would stop
+    // right after the tool call with no user-facing text at all.
+    stopWhen: stepCountIs(5),
   });
 
   return result.toUIMessageStreamResponse();
