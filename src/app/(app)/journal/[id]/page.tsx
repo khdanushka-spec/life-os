@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { fallbackPromptsForToday } from "@/lib/journal";
-import { JournalComposer } from "@/components/journal/journal-composer";
+import { JournalComposer } from "@/components/journal/journal-composer-lazy";
 
 export default async function JournalEntryPage({
   params,

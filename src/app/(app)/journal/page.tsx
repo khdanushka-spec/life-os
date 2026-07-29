@@ -9,7 +9,7 @@ import { startOfWeek, startOfMonth, startOfBrisbaneDay, brisbaneDateKey } from "
 
 import { JournalHeader } from "@/components/journal/journal-header";
 import { TodayCard } from "@/components/journal/today-card";
-import { JournalComposer } from "@/components/journal/journal-composer";
+import { JournalComposer } from "@/components/journal/journal-composer-lazy";
 import { EntryList } from "@/components/journal/entry-list";
 import { JournalSearch, type JournalSearchParams } from "@/components/journal/journal-search";
 import { AiInsights } from "@/components/journal/ai-insights";

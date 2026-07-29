@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TaskCompleteCheckbox } from "@/components/tasks/task-complete-checkbox";
 import { TaskTitle } from "@/components/tasks/task-title";
-import { TaskDescriptionEditor } from "@/components/tasks/task-description-editor";
+import { TaskDescriptionEditor } from "@/components/tasks/task-description-editor-lazy";
 import { TaskSubtasks } from "@/components/tasks/task-subtasks";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskDetailFields } from "@/components/tasks/task-detail-fields";

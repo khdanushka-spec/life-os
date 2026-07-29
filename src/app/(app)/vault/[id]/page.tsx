@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
-import { VaultComposer } from "@/components/vault/vault-composer";
+import { VaultComposer } from "@/components/vault/vault-composer-lazy";
 
 export default async function VaultItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
