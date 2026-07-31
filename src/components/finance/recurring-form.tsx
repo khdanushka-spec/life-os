@@ -29,11 +29,13 @@ const INTERVALS: { value: RecurringInterval; label: string }[] = [
   { value: "YEARLY", label: "Yearly" },
 ];
 
-export function RecurringForm() {
+export function RecurringForm({ accounts }: { accounts: { id: string; name: string }[] }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<TransactionType>("EXPENSE");
   const [interval, setInterval] = useState<RecurringInterval>("MONTHLY");
   const [category, setCategory] = useState(TRANSACTION_CATEGORIES[0]);
+  const [accountId, setAccountId] = useState<string>("none");
+  const [autoPay, setAutoPay] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -52,6 +54,8 @@ export function RecurringForm() {
             formData.set("type", type);
             formData.set("interval", interval);
             formData.set("category", category);
+            formData.set("accountId", accountId);
+            formData.set("autoPay", autoPay ? "on" : "off");
             startTransition(async () => {
               await createRecurringAction(formData);
               setOpen(false);
@@ -117,9 +121,29 @@ export function RecurringForm() {
               </SelectContent>
             </Select>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox name="autoPay" value="on" />
-            Auto-pay
+          <div className="flex flex-col gap-1.5">
+            <Label>Nominated account</Label>
+            <Select value={accountId} onValueChange={(v) => setAccountId(v as string)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No account (track only)</SelectItem>
+                {accounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <label className={`flex items-center gap-2 text-sm ${accountId === "none" ? "text-muted-foreground" : ""}`}>
+            <Checkbox
+              checked={autoPay}
+              onCheckedChange={setAutoPay}
+              disabled={accountId === "none"}
+            />
+            Auto-pay {accountId === "none" ? "(pick an account first)" : `— deduct/credit this account on the due date`}
           </label>
           <DialogFooter>
             <Button type="submit" disabled={isPending}>

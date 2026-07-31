@@ -19,6 +19,7 @@ import {
   getOrGenerateSpendingInsights,
   getOrGenerateHealthScoreNarrative,
 } from "@/lib/ai/finance";
+import { processDueRecurringPayments } from "@/server/recurring-automation";
 
 const SUB_PAGES = [
   { href: "/finance/accounts", label: "Accounts" },
@@ -39,6 +40,11 @@ export default async function FinancePage({
   const { month } = await searchParams;
   const dbUser = await requireDbUser();
 
+  // Must run before the net worth snapshot below - an autoPay bill that's
+  // just come due needs to move the account balance first, or today's
+  // snapshot (and everything cached from it) would be computed from a
+  // stale balance.
+  await processDueRecurringPayments(dbUser.id);
   await ensureTodaysNetWorthSnapshot(dbUser.id);
 
   const monthStart = startOfMonth(new Date());

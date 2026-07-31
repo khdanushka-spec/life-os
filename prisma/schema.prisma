@@ -704,7 +704,8 @@ model FinancialAccount {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  transactions Transaction[]
+  transactions      Transaction[]
+  recurringPayments RecurringPayment[]
 
   @@index([userId, archived])
 }
@@ -762,10 +763,19 @@ model RecurringPayment {
   nextDueDate DateTime          @db.Date
   autoPay     Boolean           @default(false)
   active      Boolean           @default(true)
+  // The account to debit (EXPENSE) or credit (INCOME) automatically when
+  // autoPay is on and nextDueDate arrives - see
+  // server/recurring-automation.ts. Nullable: autoPay has no effect until
+  // one is nominated. onDelete: SetNull rather than Cascade - deleting the
+  // account should stop the automation, not delete the bill/subscription
+  // record itself.
+  accountId   String?           @db.Uuid
+  account     FinancialAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
   @@index([userId, active])
+  @@index([accountId])
 }
 
 // One row per category per month. Yearly comparison aggregates the

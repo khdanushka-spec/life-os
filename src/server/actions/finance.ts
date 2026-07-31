@@ -146,10 +146,22 @@ const recurringSchema = z.object({
   interval: z.nativeEnum(RecurringInterval),
   nextDueDate: z.coerce.date(),
   autoPay: z.coerce.boolean().optional(),
+  accountId: z.string().uuid().nullable().optional(),
 });
+
+// Verifies the nominated account actually belongs to this user before it's
+// allowed to be linked - accountId arrives from client input (a <Select>),
+// so this is the only thing stopping one user's recurring payment from
+// being wired to another user's account.
+async function resolveOwnedAccountId(userId: string, accountId: string | null | undefined): Promise<string | null> {
+  if (!accountId) return null;
+  const owned = await prisma.financialAccount.findFirst({ where: { id: accountId, userId }, select: { id: true } });
+  return owned?.id ?? null;
+}
 
 export async function createRecurringAction(formData: FormData) {
   const dbUser = await requireDbUser();
+  const rawAccountId = formData.get("accountId");
   const parsed = recurringSchema.safeParse({
     name: formData.get("name"),
     amount: formData.get("amount"),
@@ -158,10 +170,14 @@ export async function createRecurringAction(formData: FormData) {
     interval: formData.get("interval"),
     nextDueDate: formData.get("nextDueDate"),
     autoPay: formData.get("autoPay") === "on",
+    accountId: rawAccountId && rawAccountId !== "none" ? rawAccountId : null,
   });
   if (!parsed.success) return;
 
-  await prisma.recurringPayment.create({ data: { userId: dbUser.id, ...parsed.data } });
+  const accountId = await resolveOwnedAccountId(dbUser.id, parsed.data.accountId);
+  await prisma.recurringPayment.create({
+    data: { userId: dbUser.id, ...parsed.data, accountId, autoPay: parsed.data.autoPay && accountId != null },
+  });
   revalidateFinance("/finance/recurring");
 }
 
@@ -170,6 +186,30 @@ export async function toggleRecurringActiveAction(id: string, active: boolean) {
   await prisma.recurringPayment.updateMany({
     where: { id, userId: dbUser.id },
     data: { active },
+  });
+  revalidateFinance("/finance/recurring");
+}
+
+// autoPay only means anything with a nominated account - toggling it on
+// without one is a no-op the automation would silently skip anyway, so
+// this rejects that combination up front instead.
+export async function toggleRecurringAutoPayAction(id: string, autoPay: boolean) {
+  const dbUser = await requireDbUser();
+  const existing = await prisma.recurringPayment.findFirst({ where: { id, userId: dbUser.id }, select: { accountId: true } });
+  if (!existing) return;
+  if (autoPay && !existing.accountId) return;
+  await prisma.recurringPayment.updateMany({ where: { id, userId: dbUser.id }, data: { autoPay } });
+  revalidateFinance("/finance/recurring");
+}
+
+export async function setRecurringAccountAction(id: string, accountId: string | null) {
+  const dbUser = await requireDbUser();
+  const resolvedAccountId = await resolveOwnedAccountId(dbUser.id, accountId);
+  await prisma.recurringPayment.updateMany({
+    where: { id, userId: dbUser.id },
+    // Clearing the account also turns autoPay off - it can't stay on
+    // pointing at nothing.
+    data: { accountId: resolvedAccountId, ...(resolvedAccountId == null ? { autoPay: false } : {}) },
   });
   revalidateFinance("/finance/recurring");
 }
