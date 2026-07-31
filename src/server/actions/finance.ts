@@ -53,6 +53,26 @@ export async function createAccountAction(formData: FormData) {
   revalidateFinance("/finance/accounts");
 }
 
+const accountEditSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  balance: z.coerce.number().finite(),
+});
+
+export async function updateAccountAction(accountId: string, formData: FormData) {
+  const dbUser = await requireDbUser();
+  const parsed = accountEditSchema.safeParse({
+    name: formData.get("name"),
+    balance: formData.get("balance"),
+  });
+  if (!parsed.success) return;
+
+  await prisma.financialAccount.updateMany({
+    where: { id: accountId, userId: dbUser.id },
+    data: parsed.data,
+  });
+  revalidateFinance("/finance/accounts");
+}
+
 export async function archiveAccountAction(accountId: string) {
   const dbUser = await requireDbUser();
   // Archive rather than delete - a hard delete would cascade-drop every

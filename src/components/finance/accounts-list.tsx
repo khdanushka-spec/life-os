@@ -1,12 +1,22 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Archive } from "lucide-react";
+import { Archive, Pencil } from "lucide-react";
 import type { FinancialAccount } from "@/generated/prisma/client";
-import { archiveAccountAction } from "@/server/actions/finance";
+import { archiveAccountAction, updateAccountAction } from "@/server/actions/finance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ICONS, LIABILITY_ACCOUNT_TYPES, formatCurrency } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +28,57 @@ export type AccountView = Omit<FinancialAccount, "balance" | "creditLimit"> & {
   balance: number;
   creditLimit: number | null;
 };
+
+function EditAccountDialog({ account }: { account: AccountView }) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const isLiability = LIABILITY_ACCOUNT_TYPES.includes(account.type);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit account" />}>
+        <Pencil className="size-3.5" />
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit account</DialogTitle>
+        </DialogHeader>
+        <form
+          className="flex flex-col gap-3"
+          action={(formData) => {
+            startTransition(async () => {
+              await updateAccountAction(account.id, formData);
+              setOpen(false);
+              router.refresh();
+            });
+          }}
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`edit-name-${account.id}`}>Name</Label>
+            <Input id={`edit-name-${account.id}`} name="name" defaultValue={account.name} required maxLength={80} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`edit-balance-${account.id}`}>{isLiability ? "Current balance owed" : "Current balance"}</Label>
+            <Input
+              id={`edit-balance-${account.id}`}
+              name="balance"
+              type="number"
+              step="0.01"
+              defaultValue={account.balance}
+              required
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function AccountRow({ account }: { account: AccountView }) {
   const [isPending, startTransition] = useTransition();
@@ -48,6 +109,7 @@ function AccountRow({ account }: { account: AccountView }) {
           </p>
         )}
       </div>
+      <EditAccountDialog account={account} />
       <Button
         variant="ghost"
         size="icon-sm"
