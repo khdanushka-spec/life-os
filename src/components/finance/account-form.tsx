@@ -16,14 +16,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { CurrencyField } from "@/components/finance/currency-field";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/finance";
 import type { AccountType } from "@/generated/prisma/client";
 
 const TYPES = Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[];
 
-export function AccountForm({ currency = "AUD" }: { currency?: string }) {
+export function AccountForm({ currency = "AUD", currencyPicker = false }: { currency?: string; currencyPicker?: boolean }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<AccountType>("CHECKING");
+  const [pickedCurrency, setPickedCurrency] = useState("LKR");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const isCredit = type === "CREDIT_CARD" || type === "LOAN";
@@ -41,7 +43,7 @@ export function AccountForm({ currency = "AUD" }: { currency?: string }) {
           className="flex flex-col gap-3"
           action={(formData) => {
             formData.set("type", type);
-            formData.set("currency", currency);
+            formData.set("currency", currencyPicker ? pickedCurrency : currency);
             startTransition(async () => {
               await createAccountAction(formData);
               setOpen(false);
@@ -68,6 +70,7 @@ export function AccountForm({ currency = "AUD" }: { currency?: string }) {
               </SelectContent>
             </Select>
           </div>
+          {currencyPicker && <CurrencyField value={pickedCurrency} onChange={setPickedCurrency} />}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="account-balance">{isCredit ? "Current balance owed" : "Current balance"}</Label>
             <Input

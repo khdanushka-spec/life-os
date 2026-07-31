@@ -27,7 +27,7 @@ const SUB_PAGES = [
   { href: "/finance/recurring", label: "Bills & Subscriptions" },
   { href: "/finance/goals", label: "Savings Goals" },
   { href: "/finance/investments", label: "Investments & Assets" },
-  { href: "/finance/sri-lanka", label: "Sri Lankan Accounts" },
+  { href: "/finance/foreign", label: "Foreign Accounts" },
   { href: "/finance/reports", label: "Reports" },
 ];
 

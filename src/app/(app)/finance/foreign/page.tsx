@@ -11,14 +11,18 @@ import { requireDbUser } from "@/server/db-user";
 import { decToNumber, formatCurrency, LIABILITY_ACCOUNT_TYPES } from "@/lib/finance";
 import { getAudFxSnapshot, convertToAud } from "@/lib/fx";
 
-const LKR = "LKR";
-
-export default async function SriLankaAccountsPage() {
+export default async function ForeignAccountsPage() {
   const dbUser = await requireDbUser();
 
   const [accountRows, investmentRows, fx] = await Promise.all([
-    prisma.financialAccount.findMany({ where: { userId: dbUser.id, archived: false, currency: LKR }, orderBy: { createdAt: "asc" } }),
-    prisma.investment.findMany({ where: { userId: dbUser.id, currency: LKR }, orderBy: { createdAt: "asc" } }),
+    prisma.financialAccount.findMany({
+      where: { userId: dbUser.id, archived: false, currency: { not: "AUD" } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.investment.findMany({
+      where: { userId: dbUser.id, currency: { not: "AUD" } },
+      orderBy: { createdAt: "asc" },
+    }),
     getAudFxSnapshot(),
   ]);
 
@@ -34,13 +38,15 @@ export default async function SriLankaAccountsPage() {
     currentValue: decToNumber(i.currentValue),
   }));
 
-  const rate = fx?.rates[LKR] ?? null; // AUD value of 1 LKR
+  const currenciesPresent = Array.from(
+    new Set([...accounts.map((a) => a.currency), ...investments.map((i) => i.currency)]),
+  ).sort();
 
   let assetsAud = 0;
   let liabilitiesAud = 0;
   let unconverted = 0;
   for (const a of accounts) {
-    const converted = convertToAud(a.balance, LKR, fx?.rates);
+    const converted = convertToAud(a.balance, a.currency, fx?.rates);
     if (converted == null) {
       unconverted++;
       continue;
@@ -49,7 +55,7 @@ export default async function SriLankaAccountsPage() {
     else assetsAud += converted;
   }
   for (const inv of investments) {
-    const converted = convertToAud(inv.currentValue, LKR, fx?.rates);
+    const converted = convertToAud(inv.currentValue, inv.currency, fx?.rates);
     if (converted == null) {
       unconverted++;
       continue;
@@ -66,9 +72,10 @@ export default async function SriLankaAccountsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Sri Lankan Accounts</CardTitle>
+          <CardTitle>Foreign Accounts</CardTitle>
           <CardDescription>
-            Held in LKR, converted to AUD automatically and included in your overall net worth.
+            Accounts, loans, and investments held in any currency other than AUD, converted automatically and
+            included in your overall net worth.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -77,17 +84,25 @@ export default async function SriLankaAccountsPage() {
               {formatCurrency(netAud)}
               <span className="ml-1.5 text-sm font-normal text-muted-foreground">net, converted</span>
             </p>
-            <p className="text-xs text-muted-foreground">
-              {rate != null ? `1 AUD = ${(1 / rate).toFixed(2)} LKR` : "Exchange rate unavailable right now"}
-              {fx?.updatedAtUtc && <> · updated {new Date(fx.updatedAtUtc).toLocaleDateString("en-AU")}</>}
-            </p>
+            {currenciesPresent.length > 0 && (
+              <div className="text-right text-xs text-muted-foreground">
+                {currenciesPresent.map((code) => {
+                  const rate = fx?.rates[code];
+                  return (
+                    <p key={code}>{rate != null ? `1 AUD = ${(1 / rate).toFixed(2)} ${code}` : `${code} rate unavailable`}</p>
+                  );
+                })}
+                {fx?.updatedAtUtc && <p>updated {new Date(fx.updatedAtUtc).toLocaleDateString("en-AU")}</p>}
+              </div>
+            )}
           </div>
           {unconverted > 0 && (
             <Alert variant="destructive">
               <TriangleAlert />
               <AlertDescription>
-                Couldn&apos;t fetch today&apos;s exchange rate, so {unconverted} {unconverted === 1 ? "item was" : "items were"}{" "}
-                left out of this total and your overall net worth — it&apos;ll catch up once the rate is back.
+                Couldn&apos;t fetch today&apos;s exchange rate for one or more currencies, so {unconverted}{" "}
+                {unconverted === 1 ? "item was" : "items were"} left out of this total and your overall net worth —
+                it&apos;ll catch up once the rate is back.
               </AlertDescription>
             </Alert>
           )}
@@ -98,9 +113,9 @@ export default async function SriLankaAccountsPage() {
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <div>
             <CardTitle>Accounts &amp; Loans</CardTitle>
-            <CardDescription>Bank accounts and loans held in Sri Lanka.</CardDescription>
+            <CardDescription>Bank accounts and loans held outside Australia.</CardDescription>
           </div>
-          <AccountForm currency={LKR} />
+          <AccountForm currencyPicker />
         </CardHeader>
         <CardContent>
           <AccountsList accounts={accounts} />
@@ -111,9 +126,9 @@ export default async function SriLankaAccountsPage() {
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <div>
             <CardTitle>Investments</CardTitle>
-            <CardDescription>Shares, property, and other investments held in Sri Lanka.</CardDescription>
+            <CardDescription>Shares, property, and other investments held outside Australia.</CardDescription>
           </div>
-          <InvestmentForm currency={LKR} />
+          <InvestmentForm currencyPicker />
         </CardHeader>
         <CardContent>
           {investments.length === 0 ? (

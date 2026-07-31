@@ -16,14 +16,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { CurrencyField } from "@/components/finance/currency-field";
 import { INVESTMENT_TYPE_LABELS } from "@/lib/finance";
 import type { InvestmentType } from "@/generated/prisma/client";
 
 const TYPES = Object.keys(INVESTMENT_TYPE_LABELS) as InvestmentType[];
 
-export function InvestmentForm({ currency = "AUD" }: { currency?: string }) {
+export function InvestmentForm({ currency = "AUD", currencyPicker = false }: { currency?: string; currencyPicker?: boolean }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<InvestmentType>("SHARES");
+  const [pickedCurrency, setPickedCurrency] = useState("LKR");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const hasUnits = type === "SHARES" || type === "ETF" || type === "CRYPTO";
@@ -41,7 +43,7 @@ export function InvestmentForm({ currency = "AUD" }: { currency?: string }) {
           className="flex flex-col gap-3"
           action={(formData) => {
             formData.set("type", type);
-            formData.set("currency", currency);
+            formData.set("currency", currencyPicker ? pickedCurrency : currency);
             startTransition(async () => {
               await createInvestmentAction(formData);
               setOpen(false);
@@ -68,6 +70,7 @@ export function InvestmentForm({ currency = "AUD" }: { currency?: string }) {
               </SelectContent>
             </Select>
           </div>
+          {currencyPicker && <CurrencyField value={pickedCurrency} onChange={setPickedCurrency} />}
           {hasUnits && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="inv-units">Units</Label>
