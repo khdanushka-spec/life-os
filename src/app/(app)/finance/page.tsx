@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { TriangleAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { FinanceHeader } from "@/components/finance/finance-header";
 import { NetWorthChart } from "@/components/finance/net-worth-chart";
@@ -11,7 +13,15 @@ import { SavingsGoals } from "@/components/finance/savings-goals";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { startOfMonth } from "@/lib/date";
-import { computeNetWorth, decToNumber, findSnapshotDaysAgo } from "@/lib/finance";
+import {
+  computeNetWorth,
+  computeLowBalanceAlerts,
+  decToNumber,
+  findSnapshotDaysAgo,
+  formatCurrency,
+  LOW_BALANCE_THRESHOLD,
+  LOW_BALANCE_WINDOW_DAYS,
+} from "@/lib/finance";
 import { getAudFxSnapshot } from "@/lib/fx";
 import {
   ensureTodaysNetWorthSnapshot,
@@ -51,11 +61,12 @@ export default async function FinancePage({
   const since = new Date();
   since.setDate(since.getDate() - 90);
 
-  const [accounts, investments, assetsLiabilities, snapshots, monthTxns, goals, cashflow, spendingInsights, healthScore, fx] =
+  const [accounts, investments, assetsLiabilities, recurring, snapshots, monthTxns, goals, cashflow, spendingInsights, healthScore, fx] =
     await Promise.all([
       prisma.financialAccount.findMany({ where: { userId: dbUser.id, archived: false } }),
       prisma.investment.findMany({ where: { userId: dbUser.id } }),
       prisma.assetLiability.findMany({ where: { userId: dbUser.id } }),
+      prisma.recurringPayment.findMany({ where: { userId: dbUser.id, active: true, accountId: { not: null } } }),
       prisma.netWorthSnapshot.findMany({ where: { userId: dbUser.id, date: { gte: since } }, orderBy: { date: "asc" } }),
       prisma.transaction.findMany({ where: { userId: dbUser.id, type: "EXPENSE", date: { gte: monthStart } } }),
       prisma.savingsGoal.findMany({ where: { userId: dbUser.id, archived: false }, orderBy: [{ isEmergencyFund: "desc" }, { createdAt: "asc" }] }),
@@ -72,6 +83,19 @@ export default async function FinancePage({
     fxRatesToAud: fx?.rates,
   });
 
+  const lowBalanceAlerts = computeLowBalanceAlerts(
+    accounts.map((a) => ({ id: a.id, name: a.name, type: a.type, balance: decToNumber(a.balance), currency: a.currency })),
+    recurring.map((r) => ({
+      name: r.name,
+      accountId: r.accountId,
+      active: r.active,
+      type: r.type,
+      amount: decToNumber(r.amount),
+      interval: r.interval,
+      nextDueDate: r.nextDueDate,
+    })),
+  );
+
   const monthAgoSnapshot = findSnapshotDaysAgo(snapshots, 30);
   const netWorthChange = monthAgoSnapshot ? netWorth - decToNumber(monthAgoSnapshot.netWorth) : null;
 
@@ -85,6 +109,29 @@ export default async function FinancePage({
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:p-6">
       <FinanceHeader name={name} netWorth={netWorth} netWorthChange={netWorthChange} />
+
+      {lowBalanceAlerts.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {lowBalanceAlerts.map((alert) => (
+            <Alert key={alert.accountId} variant="destructive">
+              <TriangleAlert />
+              <AlertTitle>Urgent: {alert.accountName} is projected to drop below {formatCurrency(LOW_BALANCE_THRESHOLD, alert.currency)}</AlertTitle>
+              <AlertDescription>
+                Currently {formatCurrency(alert.currentBalance, alert.currency)}, projected to
+                {" "}{formatCurrency(alert.projectedBalance, alert.currency)} within the next {LOW_BALANCE_WINDOW_DAYS} days from{" "}
+                {alert.upcoming.map((u, i) => (
+                  <span key={i}>
+                    {i > 0 && ", "}
+                    {u.name} ({u.type === "EXPENSE" ? "-" : "+"}
+                    {formatCurrency(u.amount, alert.currency)} on {u.date.toLocaleDateString("en-AU", { month: "short", day: "numeric" })})
+                  </span>
+                ))}
+                .
+              </AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {SUB_PAGES.map((p) => (

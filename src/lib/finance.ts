@@ -127,6 +127,75 @@ export function computeNetWorth(input: {
   return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities, unconvertedCount };
 }
 
+export const LOW_BALANCE_THRESHOLD = 200;
+export const LOW_BALANCE_WINDOW_DAYS = 3;
+
+// Only liquid account types can meaningfully "run low" - a LOAN or
+// CREDIT_CARD balance dropping is the opposite of a problem.
+const LIQUID_ACCOUNT_TYPES: AccountType[] = ["CHECKING", "SAVINGS", "CASH"];
+
+export type LowBalanceAlert = {
+  accountId: string;
+  accountName: string;
+  currency: string;
+  currentBalance: number;
+  projectedBalance: number;
+  upcoming: { name: string; amount: number; type: TransactionType; date: Date }[];
+};
+
+// Projects each liquid account's balance forward by summing every
+// recurring payment nominated to it (regardless of autoPay - a bill you
+// pay manually still drains the account once it's due, so it still
+// belongs in the warning) that falls within the window, and flags any
+// account that would cross below the threshold. Doesn't touch accounts
+// with nothing nominated to them - no data means no alert, not a false one.
+export function computeLowBalanceAlerts(
+  accounts: { id: string; name: string; type: AccountType; balance: number; currency: string }[],
+  recurring: {
+    name: string;
+    accountId: string | null;
+    active: boolean;
+    type: TransactionType;
+    amount: number;
+    interval: RecurringInterval;
+    nextDueDate: Date;
+  }[],
+  now: Date = new Date(),
+): LowBalanceAlert[] {
+  const rangeEnd = new Date(now.getTime() + LOW_BALANCE_WINDOW_DAYS * 86_400_000);
+  const alerts: LowBalanceAlert[] = [];
+
+  for (const account of accounts) {
+    if (!LIQUID_ACCOUNT_TYPES.includes(account.type)) continue;
+    const linked = recurring.filter((r) => r.accountId === account.id && r.active);
+    if (linked.length === 0) continue;
+
+    const upcoming: LowBalanceAlert["upcoming"] = [];
+    let delta = 0;
+    for (const r of linked) {
+      for (const date of occurrencesInRange(r.nextDueDate, r.interval, now, rangeEnd)) {
+        delta += r.type === "INCOME" ? r.amount : -r.amount;
+        upcoming.push({ name: r.name, amount: r.amount, type: r.type, date });
+      }
+    }
+    if (upcoming.length === 0) continue;
+
+    const projectedBalance = account.balance + delta;
+    if (projectedBalance < LOW_BALANCE_THRESHOLD) {
+      alerts.push({
+        accountId: account.id,
+        accountName: account.name,
+        currency: account.currency,
+        currentBalance: account.balance,
+        projectedBalance,
+        upcoming: upcoming.sort((a, b) => a.date.getTime() - b.date.getTime()),
+      });
+    }
+  }
+
+  return alerts;
+}
+
 // Finds a snapshot roughly N days old (within a tolerance window) for a
 // "change over the last month" comparison. Calls Date.now() internally
 // so callers never do impure date math directly in a component body.
