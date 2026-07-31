@@ -80,25 +80,51 @@ export function decToNumber(
   return Number(d);
 }
 
+// fxRatesToAud: currency code -> AUD value of 1 unit (see lib/fx.ts). An
+// account/investment in a non-AUD currency with no matching rate is
+// excluded from the totals rather than counted at face value - a missing
+// LKR rate must never silently add e.g. 500,000 straight into an AUD net
+// worth. unconvertedCount tells the caller how many items got skipped so
+// it can surface that rather than pretending the total is complete.
 export function computeNetWorth(input: {
-  accounts: { type: AccountType; balance: number }[];
-  investments: { currentValue: number }[];
+  accounts: { type: AccountType; balance: number; currency?: string }[];
+  investments: { currentValue: number; currency?: string }[];
   assetsLiabilities: { kind: AssetLiabilityKind; value: number }[];
-}): { netWorth: number; totalAssets: number; totalLiabilities: number } {
+  fxRatesToAud?: Record<string, number> | null;
+}): { netWorth: number; totalAssets: number; totalLiabilities: number; unconvertedCount: number } {
   let totalAssets = 0;
   let totalLiabilities = 0;
+  let unconvertedCount = 0;
+
+  function toAud(amount: number, currency: string | undefined): number | null {
+    if (!currency || currency === "AUD") return amount;
+    const rate = input.fxRatesToAud?.[currency];
+    return rate == null ? null : amount * rate;
+  }
 
   for (const a of input.accounts) {
-    if (LIABILITY_ACCOUNT_TYPES.includes(a.type)) totalLiabilities += a.balance;
-    else totalAssets += a.balance;
+    const converted = toAud(a.balance, a.currency);
+    if (converted == null) {
+      unconvertedCount++;
+      continue;
+    }
+    if (LIABILITY_ACCOUNT_TYPES.includes(a.type)) totalLiabilities += converted;
+    else totalAssets += converted;
   }
-  for (const inv of input.investments) totalAssets += inv.currentValue;
+  for (const inv of input.investments) {
+    const converted = toAud(inv.currentValue, inv.currency);
+    if (converted == null) {
+      unconvertedCount++;
+      continue;
+    }
+    totalAssets += converted;
+  }
   for (const al of input.assetsLiabilities) {
     if (al.kind === "ASSET") totalAssets += al.value;
     else totalLiabilities += al.value;
   }
 
-  return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities };
+  return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities, unconvertedCount };
 }
 
 // Finds a snapshot roughly N days old (within a tolerance window) for a

@@ -21,7 +21,7 @@ import type { InvestmentType } from "@/generated/prisma/client";
 
 const TYPES = Object.keys(INVESTMENT_TYPE_LABELS) as InvestmentType[];
 
-export function InvestmentForm() {
+export function InvestmentForm({ currency = "AUD" }: { currency?: string }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<InvestmentType>("SHARES");
   const [isPending, startTransition] = useTransition();
@@ -41,6 +41,7 @@ export function InvestmentForm() {
           className="flex flex-col gap-3"
           action={(formData) => {
             formData.set("type", type);
+            formData.set("currency", currency);
             startTransition(async () => {
               await createInvestmentAction(formData);
               setOpen(false);

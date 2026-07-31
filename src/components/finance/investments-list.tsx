@@ -20,7 +20,7 @@ export type InvestmentView = Omit<Investment, "units" | "costBasis" | "currentVa
 };
 export type AssetLiabilityView = Omit<AssetLiability, "value"> & { value: number };
 
-function InvestmentRow({ investment }: { investment: InvestmentView }) {
+export function InvestmentRow({ investment }: { investment: InvestmentView }) {
   const [isPending, startTransition] = useTransition();
   const [value, setValue] = useState(investment.currentValue.toString());
   const router = useRouter();

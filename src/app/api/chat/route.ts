@@ -7,6 +7,7 @@ import { moodMeta } from "@/lib/journal";
 import { startOfMonth, brisbaneDateKey } from "@/lib/date";
 import { buildChatTools } from "@/lib/ai/chat-tools";
 import { computeNetWorth, decToNumber, formatCurrency, occurrencesInRange } from "@/lib/finance";
+import { getAudFxSnapshot } from "@/lib/fx";
 import { PRIORITY_META } from "@/lib/tasks";
 import { PROJECT_STATUS_META } from "@/lib/work";
 import { MEDICAL_RECORD_TYPE_META } from "@/lib/health";
@@ -84,19 +85,21 @@ export async function POST(req: Request) {
     : "No journal entries yet.";
 
   const monthStart = startOfMonth(new Date());
-  const [accounts, investments, assetsLiabilities, budgets, monthExpenses, upcomingBills] = await Promise.all([
+  const [accounts, investments, assetsLiabilities, budgets, monthExpenses, upcomingBills, fx] = await Promise.all([
     prisma.financialAccount.findMany({ where: { userId: dbUser.id, archived: false } }),
     prisma.investment.findMany({ where: { userId: dbUser.id } }),
     prisma.assetLiability.findMany({ where: { userId: dbUser.id } }),
     prisma.budget.findMany({ where: { userId: dbUser.id, month: monthStart } }),
     prisma.transaction.findMany({ where: { userId: dbUser.id, type: "EXPENSE", date: { gte: monthStart } } }),
     prisma.recurringPayment.findMany({ where: { userId: dbUser.id, active: true } }),
+    getAudFxSnapshot(),
   ]);
 
   const { netWorth } = computeNetWorth({
-    accounts: accounts.map((a) => ({ type: a.type, balance: decToNumber(a.balance) })),
-    investments: investments.map((i) => ({ currentValue: decToNumber(i.currentValue) })),
+    accounts: accounts.map((a) => ({ type: a.type, balance: decToNumber(a.balance), currency: a.currency })),
+    investments: investments.map((i) => ({ currentValue: decToNumber(i.currentValue), currency: i.currency })),
     assetsLiabilities: assetsLiabilities.map((a) => ({ kind: a.kind, value: decToNumber(a.value) })),
+    fxRatesToAud: fx?.rates,
   });
 
   const spendByCategory: Record<string, number> = {};

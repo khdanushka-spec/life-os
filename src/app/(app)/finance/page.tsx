@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { startOfMonth } from "@/lib/date";
 import { computeNetWorth, decToNumber, findSnapshotDaysAgo } from "@/lib/finance";
+import { getAudFxSnapshot } from "@/lib/fx";
 import {
   ensureTodaysNetWorthSnapshot,
   getOrGenerateCashflowNarrative,
@@ -26,6 +27,7 @@ const SUB_PAGES = [
   { href: "/finance/recurring", label: "Bills & Subscriptions" },
   { href: "/finance/goals", label: "Savings Goals" },
   { href: "/finance/investments", label: "Investments & Assets" },
+  { href: "/finance/sri-lanka", label: "Sri Lankan Accounts" },
   { href: "/finance/reports", label: "Reports" },
 ];
 
@@ -43,7 +45,7 @@ export default async function FinancePage({
   const since = new Date();
   since.setDate(since.getDate() - 90);
 
-  const [accounts, investments, assetsLiabilities, snapshots, monthTxns, goals, cashflow, spendingInsights, healthScore] =
+  const [accounts, investments, assetsLiabilities, snapshots, monthTxns, goals, cashflow, spendingInsights, healthScore, fx] =
     await Promise.all([
       prisma.financialAccount.findMany({ where: { userId: dbUser.id, archived: false } }),
       prisma.investment.findMany({ where: { userId: dbUser.id } }),
@@ -54,12 +56,14 @@ export default async function FinancePage({
       getOrGenerateCashflowNarrative(dbUser.id),
       getOrGenerateSpendingInsights(dbUser.id),
       getOrGenerateHealthScoreNarrative(dbUser.id),
+      getAudFxSnapshot(),
     ]);
 
   const { netWorth } = computeNetWorth({
-    accounts: accounts.map((a) => ({ type: a.type, balance: decToNumber(a.balance) })),
-    investments: investments.map((i) => ({ currentValue: decToNumber(i.currentValue) })),
+    accounts: accounts.map((a) => ({ type: a.type, balance: decToNumber(a.balance), currency: a.currency })),
+    investments: investments.map((i) => ({ currentValue: decToNumber(i.currentValue), currency: i.currency })),
     assetsLiabilities: assetsLiabilities.map((a) => ({ kind: a.kind, value: decToNumber(a.value) })),
+    fxRatesToAud: fx?.rates,
   });
 
   const monthAgoSnapshot = findSnapshotDaysAgo(snapshots, 30);

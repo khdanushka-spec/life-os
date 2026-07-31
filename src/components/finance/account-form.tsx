@@ -21,7 +21,7 @@ import type { AccountType } from "@/generated/prisma/client";
 
 const TYPES = Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[];
 
-export function AccountForm() {
+export function AccountForm({ currency = "AUD" }: { currency?: string }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<AccountType>("CHECKING");
   const [isPending, startTransition] = useTransition();
@@ -41,6 +41,7 @@ export function AccountForm() {
           className="flex flex-col gap-3"
           action={(formData) => {
             formData.set("type", type);
+            formData.set("currency", currency);
             startTransition(async () => {
               await createAccountAction(formData);
               setOpen(false);
