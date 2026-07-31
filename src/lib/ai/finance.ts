@@ -15,6 +15,7 @@ import {
   type FinancialReportSummary,
 } from "@/lib/finance";
 import { startOfMonth, brisbaneToday } from "@/lib/date";
+import { getAudFxSnapshot, convertToAud } from "@/lib/fx";
 import type { ReportPeriod } from "@/generated/prisma/client";
 
 const SYSTEM =
@@ -40,15 +41,17 @@ async function writeCache(userId: string, kind: string, content: unknown) {
 }
 
 async function loadNetWorthInputs(userId: string) {
-  const [accounts, investments, assetsLiabilities] = await Promise.all([
+  const [accounts, investments, assetsLiabilities, fx] = await Promise.all([
     prisma.financialAccount.findMany({ where: { userId, archived: false } }),
     prisma.investment.findMany({ where: { userId } }),
     prisma.assetLiability.findMany({ where: { userId } }),
+    getAudFxSnapshot(),
   ]);
   return {
-    accounts: accounts.map((a) => ({ type: a.type, balance: decToNumber(a.balance) })),
-    investments: investments.map((i) => ({ currentValue: decToNumber(i.currentValue) })),
+    accounts: accounts.map((a) => ({ type: a.type, balance: decToNumber(a.balance), currency: a.currency })),
+    investments: investments.map((i) => ({ currentValue: decToNumber(i.currentValue), currency: i.currency })),
     assetsLiabilities: assetsLiabilities.map((a) => ({ kind: a.kind, value: decToNumber(a.value) })),
+    fxRatesToAud: fx?.rates,
   };
 }
 
@@ -77,13 +80,22 @@ export async function getOrGenerateCashflowNarrative(userId: string): Promise<{
     | null;
   if (cached) return cached;
 
-  const [accounts, recurring] = await Promise.all([
+  const [accounts, recurring, fx] = await Promise.all([
     prisma.financialAccount.findMany({ where: { userId, archived: false } }),
     prisma.recurringPayment.findMany({ where: { userId, active: true } }),
+    getAudFxSnapshot(),
   ]);
+  // Foreign-currency liquid accounts must be converted before summing with
+  // AUD ones - a raw LKR balance added directly to an AUD checking balance
+  // would inflate this by orders of magnitude. An account whose currency
+  // can't be converted right now (rate unavailable) is excluded rather
+  // than counted at face value, same rule as computeNetWorth.
   const liquidBalance = accounts
     .filter((a) => a.type === "CHECKING" || a.type === "SAVINGS" || a.type === "CASH")
-    .reduce((sum, a) => sum + decToNumber(a.balance), 0);
+    .reduce((sum, a) => {
+      const converted = convertToAud(decToNumber(a.balance), a.currency, fx?.rates);
+      return converted == null ? sum : sum + converted;
+    }, 0);
 
   const projection = projectCashFlow(
     30,
