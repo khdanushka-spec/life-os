@@ -94,15 +94,13 @@ const transactionSchema = z.object({
   description: z.string().trim().max(280).optional(),
   date: z.coerce.date(),
   tags: z.array(z.string().trim().min(1).max(40)).max(10).optional(),
+  toAccountId: z.string().uuid().optional(),
 });
 
-// TRANSFER is tracked as a labeled transaction only in this pass - it
-// doesn't move balance between two accounts (that needs a second
-// accountId this schema doesn't have yet). INCOME/EXPENSE fully adjust
-// the linked account's balance.
 export async function createTransactionAction(formData: FormData) {
   const dbUser = await requireDbUser();
   const tagsRaw = formData.get("tags");
+  const toAccountIdRaw = formData.get("toAccountId");
   const parsed = transactionSchema.safeParse({
     accountId: formData.get("accountId"),
     type: formData.get("type"),
@@ -111,16 +109,59 @@ export async function createTransactionAction(formData: FormData) {
     description: formData.get("description") || undefined,
     date: formData.get("date"),
     tags: typeof tagsRaw === "string" && tagsRaw.length ? tagsRaw.split(",") : undefined,
+    toAccountId: typeof toAccountIdRaw === "string" && toAccountIdRaw ? toAccountIdRaw : undefined,
   });
   if (!parsed.success) return;
-  const { accountId, type, amount, ...rest } = parsed.data;
+  const { accountId, type, amount, toAccountId, ...rest } = parsed.data;
 
   const account = await prisma.financialAccount.findFirst({
     where: { id: accountId, userId: dbUser.id },
   });
   if (!account) return;
 
-  const delta = type === "INCOME" ? amount : type === "EXPENSE" ? -amount : 0;
+  if (type === "TRANSFER") {
+    if (!toAccountId || toAccountId === accountId) return;
+    const toAccount = await prisma.financialAccount.findFirst({
+      where: { id: toAccountId, userId: dbUser.id },
+    });
+    // Same-currency only for now - converting an AUD transfer into a
+    // foreign-currency account would need an FX rate applied to the
+    // credited leg, which this doesn't attempt yet.
+    if (!toAccount || toAccount.currency !== account.currency) return;
+
+    await prisma.$transaction([
+      prisma.transaction.create({
+        data: {
+          userId: dbUser.id,
+          accountId,
+          type,
+          amount: -amount,
+          currency: account.currency,
+          transferAccountId: toAccountId,
+          ...rest,
+          description: rest.description ? `Transfer to ${toAccount.name} — ${rest.description}` : `Transfer to ${toAccount.name}`,
+        },
+      }),
+      prisma.transaction.create({
+        data: {
+          userId: dbUser.id,
+          accountId: toAccountId,
+          type,
+          amount,
+          currency: toAccount.currency,
+          transferAccountId: accountId,
+          ...rest,
+          description: rest.description ? `Transfer from ${account.name} — ${rest.description}` : `Transfer from ${account.name}`,
+        },
+      }),
+      prisma.financialAccount.update({ where: { id: accountId }, data: { balance: { decrement: amount } } }),
+      prisma.financialAccount.update({ where: { id: toAccountId }, data: { balance: { increment: amount } } }),
+    ]);
+    revalidateFinance("/finance/transactions");
+    return;
+  }
+
+  const delta = type === "INCOME" ? amount : -amount;
 
   await prisma.$transaction([
     prisma.transaction.create({
@@ -142,8 +183,45 @@ export async function deleteTransactionAction(transactionId: string) {
   });
   if (!txn) return;
 
-  const delta =
-    txn.type === "INCOME" ? -txn.amount.toNumber() : txn.type === "EXPENSE" ? txn.amount.toNumber() : 0;
+  if (txn.type === "TRANSFER") {
+    // Best-effort pairing: the other leg of this same transfer, on the
+    // other account, dated identically with the opposite signed amount.
+    // Not a hard foreign key (see schema comment), so an unmatched leg
+    // (e.g. the pair was already partially deleted) just reverses itself.
+    const pair = txn.transferAccountId
+      ? await prisma.transaction.findFirst({
+          where: {
+            userId: dbUser.id,
+            accountId: txn.transferAccountId,
+            transferAccountId: txn.accountId,
+            type: "TRANSFER",
+            date: txn.date,
+            amount: txn.amount.negated(),
+          },
+        })
+      : null;
+
+    await prisma.$transaction([
+      prisma.transaction.delete({ where: { id: transactionId } }),
+      prisma.financialAccount.update({
+        where: { id: txn.accountId },
+        data: { balance: { increment: -txn.amount.toNumber() } },
+      }),
+      ...(pair
+        ? [
+            prisma.transaction.delete({ where: { id: pair.id } }),
+            prisma.financialAccount.update({
+              where: { id: pair.accountId },
+              data: { balance: { increment: -pair.amount.toNumber() } },
+            }),
+          ]
+        : []),
+    ]);
+    revalidateFinance("/finance/transactions");
+    return;
+  }
+
+  const delta = txn.type === "INCOME" ? -txn.amount.toNumber() : txn.amount.toNumber();
 
   await prisma.$transaction([
     prisma.transaction.delete({ where: { id: transactionId } }),

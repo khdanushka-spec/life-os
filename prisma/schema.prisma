@@ -717,23 +717,31 @@ enum TransactionType {
 }
 
 model Transaction {
-  id          String           @id @default(uuid()) @db.Uuid
-  userId      String           @db.Uuid
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accountId   String           @db.Uuid
-  account     FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  type        TransactionType
-  amount      Decimal          @db.Decimal(14, 2)
-  currency    String           @default("AUD")
-  category    String
-  description String?
-  date        DateTime
-  tags        String[]         @default([])
+  id                String           @id @default(uuid()) @db.Uuid
+  userId            String           @db.Uuid
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId         String           @db.Uuid
+  account           FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  type              TransactionType
+  amount            Decimal          @db.Decimal(14, 2)
+  currency          String           @default("AUD")
+  category          String
+  description       String?
+  date              DateTime
+  tags              String[]         @default([])
   // Set when this row was generated from a RecurringPayment - lets us
   // avoid double-generating the same occurrence.
-  recurringId String?          @db.Uuid
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  recurringId       String?          @db.Uuid
+  // Only set on TRANSFER-type rows: the OTHER account in the pair. A
+  // transfer between two of the user's own accounts creates two rows (one
+  // per account) so both accounts' histories show it; this is how they
+  // find each other for paired deletion, and amount is signed for
+  // TRANSFER rows specifically (negative = money left this account,
+  // positive = money arrived) so balance reversal on delete is just
+  // "subtract whatever was stored" without a separate direction field.
+  transferAccountId String?          @db.Uuid
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([userId, date])
   @@index([accountId])

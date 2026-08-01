@@ -21,14 +21,18 @@ function TransactionRow({ txn, accountName }: { txn: TransactionView; accountNam
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const Icon = TYPE_ICON[txn.type];
-  const amount = txn.amount;
+  // TRANSFER rows store a signed amount (negative = left this account,
+  // positive = arrived) so balance reversal on delete is simple - every
+  // other type stores a plain positive magnitude with sign implied by type.
+  const isIncoming = txn.type === "INCOME" || (txn.type === "TRANSFER" && txn.amount >= 0);
+  const magnitude = txn.type === "TRANSFER" ? Math.abs(txn.amount) : txn.amount;
 
   return (
     <div className={cn("flex items-center gap-3 rounded-xl border p-3", isPending && "opacity-60")}>
       <Icon
         className={cn(
           "size-5 shrink-0",
-          txn.type === "INCOME" && "text-emerald-600 dark:text-emerald-400",
+          isIncoming && "text-emerald-600 dark:text-emerald-400",
           txn.type === "EXPENSE" && "text-muted-foreground",
         )}
       />
@@ -38,14 +42,9 @@ function TransactionRow({ txn, accountName }: { txn: TransactionView; accountNam
           {accountName} · {txn.category} · {new Date(txn.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
         </p>
       </div>
-      <p
-        className={cn(
-          "text-sm font-semibold tabular-nums",
-          txn.type === "INCOME" && "text-emerald-600 dark:text-emerald-400",
-        )}
-      >
-        {txn.type === "INCOME" ? "+" : txn.type === "EXPENSE" ? "-" : ""}
-        {formatCurrency(amount, txn.currency)}
+      <p className={cn("text-sm font-semibold tabular-nums", isIncoming && "text-emerald-600 dark:text-emerald-400")}>
+        {isIncoming ? "+" : "-"}
+        {formatCurrency(magnitude, txn.currency)}
       </p>
       <Button
         variant="ghost"

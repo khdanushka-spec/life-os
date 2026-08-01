@@ -24,9 +24,13 @@ export function TransactionForm({ accounts }: { accounts: { id: string; name: st
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<TransactionType>("EXPENSE");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [toAccountId, setToAccountId] = useState(accounts[1]?.id ?? accounts[0]?.id ?? "");
   const [category, setCategory] = useState(TRANSACTION_CATEGORIES[0]);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  const isTransfer = type === "TRANSFER";
+  const accountLabel = (id: string) => accounts.find((a) => a.id === id)?.name ?? "Select account";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -42,7 +46,8 @@ export function TransactionForm({ accounts }: { accounts: { id: string; name: st
           action={(formData) => {
             formData.set("type", type);
             formData.set("accountId", accountId);
-            formData.set("category", category);
+            formData.set("category", isTransfer ? "Transfer" : category);
+            if (isTransfer) formData.set("toAccountId", toAccountId);
             startTransition(async () => {
               await createTransactionAction(formData);
               setOpen(false);
@@ -65,10 +70,10 @@ export function TransactionForm({ accounts }: { accounts: { id: string; name: st
             ))}
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Account</Label>
+            <Label>{isTransfer ? "From account" : "Account"}</Label>
             <Select value={accountId} onValueChange={(v) => setAccountId(v as string)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>{accountLabel(accountId)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {accounts.map((a) => (
@@ -79,6 +84,26 @@ export function TransactionForm({ accounts }: { accounts: { id: string; name: st
               </SelectContent>
             </Select>
           </div>
+          {isTransfer && (
+            <div className="flex flex-col gap-1.5">
+              <Label>To account</Label>
+              <Select value={toAccountId} onValueChange={(v) => setToAccountId(v as string)}>
+                <SelectTrigger>
+                  <SelectValue>{accountLabel(toAccountId)}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts
+                    .filter((a) => a.id !== accountId)
+                    .map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Both accounts must use the same currency for now.</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="txn-amount">Amount</Label>
@@ -89,27 +114,32 @@ export function TransactionForm({ accounts }: { accounts: { id: string; name: st
               <Input id="txn-date" name="date" type="date" defaultValue={localDateInputValue()} required />
             </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Category</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as string)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TRANSACTION_CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!isTransfer && (
+            <div className="flex flex-col gap-1.5">
+              <Label>Category</Label>
+              <Select value={category} onValueChange={(v) => setCategory(v as string)}>
+                <SelectTrigger>
+                  <SelectValue>{category}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {TRANSACTION_CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="txn-desc">Description (optional)</Label>
             <Input id="txn-desc" name="description" placeholder="e.g. Woolworths" maxLength={280} />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={isPending || !accountId}>
+            <Button
+              type="submit"
+              disabled={isPending || !accountId || (isTransfer && (!toAccountId || toAccountId === accountId))}
+            >
               {isPending ? "Adding..." : "Add transaction"}
             </Button>
           </DialogFooter>

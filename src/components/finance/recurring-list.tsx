@@ -96,7 +96,11 @@ function RecurringRow({ item, accounts }: { item: RecurringView; accounts: { id:
         }}
       >
         <SelectTrigger className="h-7 w-full text-xs">
-          <SelectValue placeholder="No nominated account" />
+          <SelectValue>
+            {!item.accountId || item.accountId === "none"
+              ? "No account (track only)"
+              : (accounts.find((a) => a.id === item.accountId)?.name ?? "No account (track only)")}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="none">No account (track only)</SelectItem>

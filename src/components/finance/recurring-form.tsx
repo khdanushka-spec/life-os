@@ -95,7 +95,7 @@ export function RecurringForm({ accounts }: { accounts: { id: string; name: stri
             <Label>Repeats</Label>
             <Select value={interval} onValueChange={(v) => setInterval(v as RecurringInterval)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>{INTERVALS.find((i) => i.value === interval)?.label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {INTERVALS.map((i) => (
@@ -110,7 +110,7 @@ export function RecurringForm({ accounts }: { accounts: { id: string; name: stri
             <Label>Category</Label>
             <Select value={category} onValueChange={(v) => setCategory(v as string)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>{category}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {TRANSACTION_CATEGORIES.map((c) => (
@@ -125,7 +125,7 @@ export function RecurringForm({ accounts }: { accounts: { id: string; name: stri
             <Label>Nominated account</Label>
             <Select value={accountId} onValueChange={(v) => setAccountId(v as string)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>{accountId === "none" ? "No account (track only)" : accounts.find((a) => a.id === accountId)?.name}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No account (track only)</SelectItem>
