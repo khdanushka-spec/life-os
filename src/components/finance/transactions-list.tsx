@@ -66,9 +66,13 @@ function TransactionRow({ txn, accountName }: { txn: TransactionView; accountNam
 export function TransactionsList({
   transactions,
   accountNames,
+  showLimitNotice = false,
 }: {
   transactions: TransactionView[];
   accountNames: Record<string, string>;
+  // True only for the unfiltered, capped-at-50 view - a filtered range
+  // that happens to also have 50 results is a complete list, not a cap.
+  showLimitNotice?: boolean;
 }) {
   if (transactions.length === 0) {
     return (
@@ -93,7 +97,7 @@ export function TransactionsList({
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between border-b pb-2 text-sm">
         <span className="font-medium text-muted-foreground">
-          {transactions.length >= 50 ? "Total (most recent 50)" : "Total"}
+          {showLimitNotice ? "Total (most recent 50)" : "Total"}
         </span>
         <span className="flex gap-3 font-semibold tabular-nums">
           {currencies.map((c) => (
@@ -107,7 +111,7 @@ export function TransactionsList({
       {transactions.map((txn) => (
         <TransactionRow key={txn.id} txn={txn} accountName={accountNames[txn.accountId] ?? "Unknown"} />
       ))}
-      {transactions.length >= 50 && (
+      {showLimitNotice && (
         <Badge variant="secondary" className="mx-auto mt-2 w-fit">
           Showing most recent 50
         </Badge>
