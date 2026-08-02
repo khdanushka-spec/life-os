@@ -118,7 +118,7 @@ Dhanu screenshotted the Health page's stat row (Wellness Score / Hydration / Sle
 
 ## State
 
-**Built, verified via `tsc`/`eslint`/`next build`, committed locally (not pushed — see the standing git-push limitation below), not yet deployed.**
+**Live at `aura.dkns.ai`** (commit `a1787a0`, pushed by Dhanu herself per the standing workflow, deployed via `vercel deploy --prod --yes`).
 
 - `StatCard` (`src/components/stat-card.tsx`) gained an optional `href` prop — when set, the whole card becomes a `next/link`. All 9 other `StatCard` call sites across the app are unaffected (prop is optional).
 - `HealthStatsRow` now links: Wellness Score → `/health/wellness`, Hydration → `/health/hydration`, Sleep Last Night → `/health/sleep`, Workouts This Week → the pre-existing `/health/workouts`.
@@ -148,6 +148,5 @@ Dhanu screenshotted the Health page's stat row (Wellness Score / Hydration / Sle
 
 ## Next steps
 
-1. **Push and deploy this addendum** — commit is local only. Dhanu: please run `git push origin main`, then let me know so I can deploy (or deploy it yourself with `npx vercel deploy --prod --yes` if you'd rather not wait).
-2. Ask Dhanu to click through all three new pages once live and confirm they look right — first real visual check, per the gotcha above.
-3. Everything else in this file's "Next steps" above (SelectValue sweep, Finance visual confirmation, Tasks redesign, module-by-module Phase 1 rollout) is unrelated to this addendum and still outstanding.
+1. **Ask Dhanu to click through all three new pages** (`/health/wellness`, `/health/hydration`, `/health/sleep`) and confirm they look right — first real visual check, per the no-local-login gotcha above.
+2. Everything else in this file's "Next steps" above (SelectValue sweep, Finance visual confirmation, Tasks redesign, module-by-module Phase 1 rollout) is unrelated to this addendum and still outstanding.
