@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, Moon, Star } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatCard } from "@/components/stat-card";
+import { SleepDetailStats } from "@/components/health/sleep-detail-stats";
 import { SleepTrendChart } from "@/components/health/sleep-trend-chart";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
@@ -37,10 +37,7 @@ export default async function SleepDetailPage() {
         <p className="text-sm text-muted-foreground">Goal: {SLEEP_GOAL_HOURS}h/night, last 30 days.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard icon={Moon} label="Average sleep" value={averageHours} suffix="h" accent="bg-indigo-500" />
-        <StatCard icon={Star} label="Average quality" value={averageQuality ?? "–"} suffix={averageQuality != null ? "/5" : ""} accent="bg-indigo-500" />
-      </div>
+      <SleepDetailStats averageHours={averageHours} averageQuality={averageQuality} />
 
       <Card className="border-none bg-card/60 backdrop-blur-xl">
         <CardHeader>

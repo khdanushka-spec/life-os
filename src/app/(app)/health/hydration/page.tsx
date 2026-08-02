@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, Droplet, CalendarCheck, Flame } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatCard } from "@/components/stat-card";
+import { HydrationDetailStats } from "@/components/health/hydration-detail-stats";
 import { HydrationTrendChart } from "@/components/health/hydration-trend-chart";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
@@ -40,11 +40,7 @@ export default async function HydrationDetailPage() {
         <p className="text-sm text-muted-foreground">Goal: {WATER_GOAL_ML}ml/day, last 30 days.</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard icon={Droplet} label="Average" value={average} suffix="ml" accent="bg-sky-500" />
-        <StatCard icon={CalendarCheck} label="Days goal met" value={daysGoalMet} accent="bg-sky-500" />
-        <StatCard icon={Flame} label="Current streak" value={streak} suffix="d" accent="bg-sky-500" />
-      </div>
+      <HydrationDetailStats average={average} daysGoalMet={daysGoalMet} streak={streak} />
 
       <Card className="border-none bg-card/60 backdrop-blur-xl">
         <CardHeader>
