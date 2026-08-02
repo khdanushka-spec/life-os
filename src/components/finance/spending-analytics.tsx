@@ -39,6 +39,10 @@ export function SpendingAnalytics({ data }: { data: CategorySpend[] }) {
 
   return (
     <div className="flex flex-col gap-2.5">
+      <div className="flex items-baseline justify-between border-b pb-2 text-sm">
+        <span className="font-medium text-muted-foreground">Total</span>
+        <span className="text-base font-semibold tabular-nums">{formatCurrency(total)}</span>
+      </div>
       {rows.map((row, i) => {
         const dotClass = i < top.length ? SLOT_DOT_CLASSES[i] : OTHER_DOT_CLASS;
         const pct = (row.amount / total) * 100;

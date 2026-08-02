@@ -78,8 +78,32 @@ export function TransactionsList({
     );
   }
 
+  // Transfers are stored with a signed amount (see TransactionRow), so a
+  // matched pair nets to zero here automatically - grouped by currency
+  // rather than summed blind, per the cross-currency bug already found
+  // in net-worth totals (see HANDOVER.md).
+  const totals: Record<string, number> = {};
+  for (const txn of transactions) {
+    const signed = txn.type === "EXPENSE" ? -txn.amount : txn.amount;
+    totals[txn.currency] = (totals[txn.currency] ?? 0) + signed;
+  }
+  const currencies = Object.keys(totals);
+
   return (
     <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between border-b pb-2 text-sm">
+        <span className="font-medium text-muted-foreground">
+          {transactions.length >= 50 ? "Total (most recent 50)" : "Total"}
+        </span>
+        <span className="flex gap-3 font-semibold tabular-nums">
+          {currencies.map((c) => (
+            <span key={c} className={cn(totals[c] >= 0 && "text-emerald-600 dark:text-emerald-400")}>
+              {totals[c] >= 0 ? "+" : "-"}
+              {formatCurrency(Math.abs(totals[c]), c)}
+            </span>
+          ))}
+        </span>
+      </div>
       {transactions.map((txn) => (
         <TransactionRow key={txn.id} txn={txn} accountName={accountNames[txn.accountId] ?? "Unknown"} />
       ))}
