@@ -32,18 +32,45 @@ const WORKOUT_GOAL_PER_WEEK = 4;
 // A metric that wasn't logged today defaults to a neutral 50 rather than
 // 0, so an unlogged field doesn't tank the score the way a genuinely bad
 // value would.
+export interface WellnessBreakdown {
+  hydrationScore: number;
+  sleepScore: number;
+  wellbeingPercent: number;
+  exerciseScore: number;
+  total: number;
+}
+
+// Same weights as computeWellnessScore, but exposes each sub-score for the
+// Wellness Score detail page's breakdown view — computeWellnessScore below
+// is now just `.total` from this, so existing callers see no change.
+export function computeWellnessBreakdown(input: {
+  waterMl: number | null;
+  sleepHours: number | null;
+  wellbeingScore: number | null;
+  workoutsThisWeek: number;
+}): WellnessBreakdown {
+  const hydrationScore = input.waterMl != null ? Math.min(100, (input.waterMl / WATER_GOAL_ML) * 100) : 50;
+  const sleepScore = input.sleepHours != null ? Math.min(100, (input.sleepHours / SLEEP_GOAL_HOURS) * 100) : 50;
+  const wellbeingPercent = input.wellbeingScore != null ? input.wellbeingScore * 10 : 50;
+  const exerciseScore = Math.min(100, (input.workoutsThisWeek / WORKOUT_GOAL_PER_WEEK) * 100);
+  const total = Math.round(hydrationScore * 0.25 + sleepScore * 0.3 + wellbeingPercent * 0.25 + exerciseScore * 0.2);
+
+  return {
+    hydrationScore: Math.round(hydrationScore),
+    sleepScore: Math.round(sleepScore),
+    wellbeingPercent: Math.round(wellbeingPercent),
+    exerciseScore: Math.round(exerciseScore),
+    total,
+  };
+}
+
 export function computeWellnessScore(input: {
   waterMl: number | null;
   sleepHours: number | null;
   wellbeingScore: number | null;
   workoutsThisWeek: number;
 }): number {
-  const hydrationScore = input.waterMl != null ? Math.min(100, (input.waterMl / WATER_GOAL_ML) * 100) : 50;
-  const sleepScore = input.sleepHours != null ? Math.min(100, (input.sleepHours / SLEEP_GOAL_HOURS) * 100) : 50;
-  const wellbeingPercent = input.wellbeingScore != null ? input.wellbeingScore * 10 : 50;
-  const exerciseScore = Math.min(100, (input.workoutsThisWeek / WORKOUT_GOAL_PER_WEEK) * 100);
-
-  return Math.round(hydrationScore * 0.25 + sleepScore * 0.3 + wellbeingPercent * 0.25 + exerciseScore * 0.2);
+  return computeWellnessBreakdown(input).total;
 }
 
 export function hydrationPercent(waterMl: number | null): number {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -27,15 +28,20 @@ export function StatCard({
   value,
   suffix,
   accent,
+  href,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number | string;
   suffix?: string;
   accent: string;
+  /** When set, the whole card links to a detail page (e.g. a trend/breakdown view). */
+  href?: string;
 }) {
-  return (
-    <Card className="relative overflow-hidden border-none bg-card/60 backdrop-blur-xl transition-transform duration-200 hover:-translate-y-0.5">
+  const card = (
+    <Card
+      className={`relative overflow-hidden border-none bg-card/60 backdrop-blur-xl transition-transform duration-200 hover:-translate-y-0.5 ${href ? "h-full" : ""}`}
+    >
       <div aria-hidden className={`pointer-events-none absolute inset-0 opacity-10 ${accent}`} />
       <CardContent className="relative flex flex-col gap-2 p-4">
         <div className="flex items-center justify-between">
@@ -51,5 +57,12 @@ export function StatCard({
         </p>
       </CardContent>
     </Card>
+  );
+
+  if (!href) return card;
+  return (
+    <Link href={href} className="block">
+      {card}
+    </Link>
   );
 }

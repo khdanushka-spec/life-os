@@ -107,3 +107,47 @@ A plan was written and approved (`C:\Users\dnand\.claude\plans\fluttering-explor
 - Do the Finance features from this session actually work as expected once Dhanu tries them for real? Genuinely unknown — see Next Steps #2.
 - Does the site still feel slow anywhere specific? Never got explicit confirmation either way before she moved on to the Finance requests — assume resolved unless she says otherwise.
 - No known local dev-login credentials exist for this app (real email/password auth, not just the `SUPER_ADMIN_USERNAME`/`SUPER_ADMIN_PASSWORD` seeded via `prisma/seed.ts`) — visual browser verification has to happen either against production after deploy, or by asking Dhanu for a way to check locally. This has now blocked visual confirmation on essentially every UI change across the whole session — worth asking Dhanu directly whether a local seed user/test account can be set up, so this stops being a recurring gap every single session.
+
+---
+
+# Addendum — 2026-08-02
+
+## Goal
+
+Dhanu screenshotted the Health page's stat row (Wellness Score / Hydration / Sleep Last Night / Workouts This Week) and asked to "add from some details and new tab" for those cards. Clarified via a direct question: she wants each stat card to link to its **own dedicated detail page**, not a modal or a single combined tab.
+
+## State
+
+**Built, verified via `tsc`/`eslint`/`next build`, committed locally (not pushed — see the standing git-push limitation below), not yet deployed.**
+
+- `StatCard` (`src/components/stat-card.tsx`) gained an optional `href` prop — when set, the whole card becomes a `next/link`. All 9 other `StatCard` call sites across the app are unaffected (prop is optional).
+- `HealthStatsRow` now links: Wellness Score → `/health/wellness`, Hydration → `/health/hydration`, Sleep Last Night → `/health/sleep`, Workouts This Week → the pre-existing `/health/workouts`.
+- Three new detail pages, each following the existing `health/reports/page.tsx` template (back-link, server-fetched Prisma data, hand-rolled div-bar chart matching `WeightTrendChart`'s established style — no charting library, consistent with the rest of the app):
+  - `/health/hydration` — 30-day water-intake bar chart (scaled from 0 against the 2000ml goal, not min/max), average, days-goal-met count, current streak.
+  - `/health/sleep` — 30-day sleep-hours bar chart (same 0-scaled-to-goal approach against the 8h goal), average hours, average sleep quality (1-5).
+  - `/health/wellness` — today's score broken into its four weighted sub-scores (hydration 25%/sleep 30%/wellbeing 25%/exercise 20%, via new `computeWellnessBreakdown()` in `src/lib/health.ts`) with a progress-bar-per-component view, plus a 30-day trend of the recomputed daily total.
+- `computeWellnessScore()` is now a thin wrapper around `computeWellnessBreakdown(...).total` — same signature, same return value, zero behavior change for its two existing callers (`health/page.tsx`, `home/page.tsx`).
+
+## Key decisions
+
+- **Wellness Score's 30-day trend recomputes a trailing 7-day workout count *per historical day***, not just today's — for day D it counts workouts in `[D-6, D]`, matching the exact "workouts this week" logic already used for today's live score. This needed fetching workouts from 37 days back (30 + 7 buffer) once, then filtering in memory per day rather than issuing 30 separate count queries.
+- **Trend charts scale from a fixed 0/goal baseline, not the data's own min/max** — unlike `WeightTrendChart` (where relative fluctuation is the point), hydration/sleep/wellness are goal-referenced: a day at or above goal should look "full," not just "taller than other bars." `WellnessTrendChart` scales 0-100 directly since the score is already a percentage.
+
+## Files touched (this addendum)
+
+- `src/lib/health.ts` — added `computeWellnessBreakdown()`; `computeWellnessScore()` now delegates to it.
+- `src/components/stat-card.tsx` — optional `href` prop, wraps in `next/link` when present.
+- `src/components/health/health-stats-row.tsx` — added the four `href`s.
+- `src/components/health/hydration-trend-chart.tsx`, `sleep-trend-chart.tsx`, `wellness-trend-chart.tsx`, `wellness-breakdown-row.tsx` (all new).
+- `src/app/(app)/health/hydration/page.tsx`, `sleep/page.tsx`, `wellness/page.tsx` (all new).
+
+## Gotchas
+
+- Hit the **same "no local dev-login" wall documented above** — verified this addition via `tsc --noEmit` (clean), `eslint` (clean), and a full `next build` (all three new routes compiled and appear in the route manifest: `○ /health/hydration`, `○ /health/sleep`, `○ /health/wellness`), but never clicked through the actual rendered pages. Since this is pure presentation of already-existing, already-correct data (no new mutations, no money math), the risk profile is much lower than the Finance work above, but it's still unconfirmed pixel-for-pixel — ask Dhanu to check after this deploys.
+- **This repo's standing git-push limitation (documented above) still applies** — this session's tools committed locally but could not `git push`. Dhanu needs to run `git push origin main` herself before this can be deployed via `vercel --prod`.
+
+## Next steps
+
+1. **Push and deploy this addendum** — commit is local only. Dhanu: please run `git push origin main`, then let me know so I can deploy (or deploy it yourself with `npx vercel deploy --prod --yes` if you'd rather not wait).
+2. Ask Dhanu to click through all three new pages once live and confirm they look right — first real visual check, per the gotcha above.
+3. Everything else in this file's "Next steps" above (SelectValue sweep, Finance visual confirmation, Tasks redesign, module-by-module Phase 1 rollout) is unrelated to this addendum and still outstanding.
