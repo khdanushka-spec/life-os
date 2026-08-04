@@ -140,15 +140,18 @@ export type LowBalanceAlert = {
   currency: string;
   currentBalance: number;
   projectedBalance: number;
+  // True when the account is under the threshold right now, as opposed to
+  // only being projected to cross it because of an upcoming bill.
+  alreadyLow: boolean;
   upcoming: { name: string; amount: number; type: TransactionType; date: Date }[];
 };
 
-// Projects each liquid account's balance forward by summing every
-// recurring payment nominated to it (regardless of autoPay - a bill you
-// pay manually still drains the account once it's due, so it still
-// belongs in the warning) that falls within the window, and flags any
-// account that would cross below the threshold. Doesn't touch accounts
-// with nothing nominated to them - no data means no alert, not a false one.
+// Flags a liquid account two ways: (1) it's under the threshold right now,
+// full stop - always worth a red alert regardless of recurring data - or
+// (2) it's currently fine but a recurring payment nominated to it would
+// push it under the threshold within the window. (1) doesn't need any
+// recurring data at all; (2) does, and stays silent with none ("no data
+// means no alert, not a false one").
 export function computeLowBalanceAlerts(
   accounts: { id: string; name: string; type: AccountType; balance: number; currency: string }[],
   recurring: {
@@ -167,9 +170,9 @@ export function computeLowBalanceAlerts(
 
   for (const account of accounts) {
     if (!LIQUID_ACCOUNT_TYPES.includes(account.type)) continue;
-    const linked = recurring.filter((r) => r.accountId === account.id && r.active);
-    if (linked.length === 0) continue;
+    const alreadyLow = account.balance < LOW_BALANCE_THRESHOLD;
 
+    const linked = recurring.filter((r) => r.accountId === account.id && r.active);
     const upcoming: LowBalanceAlert["upcoming"] = [];
     let delta = 0;
     for (const r of linked) {
@@ -178,19 +181,19 @@ export function computeLowBalanceAlerts(
         upcoming.push({ name: r.name, amount: r.amount, type: r.type, date });
       }
     }
-    if (upcoming.length === 0) continue;
 
     const projectedBalance = account.balance + delta;
-    if (projectedBalance < LOW_BALANCE_THRESHOLD) {
-      alerts.push({
-        accountId: account.id,
-        accountName: account.name,
-        currency: account.currency,
-        currentBalance: account.balance,
-        projectedBalance,
-        upcoming: upcoming.sort((a, b) => a.date.getTime() - b.date.getTime()),
-      });
-    }
+    if (!alreadyLow && (upcoming.length === 0 || projectedBalance >= LOW_BALANCE_THRESHOLD)) continue;
+
+    alerts.push({
+      accountId: account.id,
+      accountName: account.name,
+      currency: account.currency,
+      currentBalance: account.balance,
+      projectedBalance,
+      alreadyLow,
+      upcoming: upcoming.sort((a, b) => a.date.getTime() - b.date.getTime()),
+    });
   }
 
   return alerts;

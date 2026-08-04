@@ -113,19 +113,27 @@ export default async function FinancePage({
       {lowBalanceAlerts.length > 0 && (
         <div className="flex flex-col gap-2">
           {lowBalanceAlerts.map((alert) => (
-            <Alert key={alert.accountId} variant="destructive">
+            <Alert key={alert.accountId} variant="destructive" className="border-destructive/40 bg-destructive/10">
               <TriangleAlert />
-              <AlertTitle>Urgent: {alert.accountName} is projected to drop below {formatCurrency(LOW_BALANCE_THRESHOLD, alert.currency)}</AlertTitle>
+              <AlertTitle>
+                {alert.alreadyLow
+                  ? `Low balance: ${alert.accountName} is below ${formatCurrency(LOW_BALANCE_THRESHOLD, alert.currency)}`
+                  : `Urgent: ${alert.accountName} is projected to drop below ${formatCurrency(LOW_BALANCE_THRESHOLD, alert.currency)}`}
+              </AlertTitle>
               <AlertDescription>
-                Currently {formatCurrency(alert.currentBalance, alert.currency)}, projected to
-                {" "}{formatCurrency(alert.projectedBalance, alert.currency)} within the next {LOW_BALANCE_WINDOW_DAYS} days from{" "}
-                {alert.upcoming.map((u, i) => (
-                  <span key={i}>
-                    {i > 0 && ", "}
-                    {u.name} ({u.type === "EXPENSE" ? "-" : "+"}
-                    {formatCurrency(u.amount, alert.currency)} on {u.date.toLocaleDateString("en-AU", { month: "short", day: "numeric" })})
-                  </span>
-                ))}
+                Currently {formatCurrency(alert.currentBalance, alert.currency)}
+                {alert.upcoming.length > 0 && (
+                  <>
+                    , projected to {formatCurrency(alert.projectedBalance, alert.currency)} within the next {LOW_BALANCE_WINDOW_DAYS} days from{" "}
+                    {alert.upcoming.map((u, i) => (
+                      <span key={i}>
+                        {i > 0 && ", "}
+                        {u.name} ({u.type === "EXPENSE" ? "-" : "+"}
+                        {formatCurrency(u.amount, alert.currency)} on {u.date.toLocaleDateString("en-AU", { month: "short", day: "numeric" })})
+                      </span>
+                    ))}
+                  </>
+                )}
                 .
               </AlertDescription>
             </Alert>
