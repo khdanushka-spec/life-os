@@ -355,6 +355,17 @@ export async function setRecurringAccountAction(id: string, accountId: string | 
   revalidateFinance("/finance/recurring");
 }
 
+export async function setRecurringCategoryAction(id: string, category: string) {
+  const dbUser = await requireDbUser();
+  const parsed = z.string().trim().min(1).max(60).safeParse(category);
+  if (!parsed.success) return;
+  await prisma.recurringPayment.updateMany({
+    where: { id, userId: dbUser.id },
+    data: { category: parsed.data },
+  });
+  revalidateFinance("/finance/recurring");
+}
+
 export async function deleteRecurringAction(id: string) {
   const dbUser = await requireDbUser();
   await prisma.recurringPayment.deleteMany({ where: { id, userId: dbUser.id } });

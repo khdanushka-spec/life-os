@@ -8,12 +8,13 @@ import {
   toggleRecurringActiveAction,
   toggleRecurringAutoPayAction,
   setRecurringAccountAction,
+  setRecurringCategoryAction,
   deleteRecurringAction,
 } from "@/server/actions/finance";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { formatCurrency } from "@/lib/finance";
+import { formatCurrency, TRANSACTION_CATEGORIES } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
 // Money field converted to a plain number server-side - see AccountView
@@ -85,32 +86,55 @@ function RecurringRow({ item, accounts }: { item: RecurringView; accounts: { id:
           <Trash2 className="size-3.5" />
         </Button>
       </div>
-      <Select
-        value={item.accountId ?? "none"}
-        onValueChange={(v) => {
-          const accountId = v as string;
-          startTransition(async () => {
-            await setRecurringAccountAction(item.id, accountId === "none" ? null : accountId);
-            router.refresh();
-          });
-        }}
-      >
-        <SelectTrigger className="h-7 w-full text-xs">
-          <SelectValue>
-            {!item.accountId || item.accountId === "none"
-              ? "No account (track only)"
-              : (accounts.find((a) => a.id === item.accountId)?.name ?? "No account (track only)")}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">No account (track only)</SelectItem>
-          {accounts.map((a) => (
-            <SelectItem key={a.id} value={a.id}>
-              {a.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="grid grid-cols-2 gap-2">
+        <Select
+          value={item.accountId ?? "none"}
+          onValueChange={(v) => {
+            const accountId = v as string;
+            startTransition(async () => {
+              await setRecurringAccountAction(item.id, accountId === "none" ? null : accountId);
+              router.refresh();
+            });
+          }}
+        >
+          <SelectTrigger className="h-7 w-full text-xs">
+            <SelectValue>
+              {!item.accountId || item.accountId === "none"
+                ? "No account (track only)"
+                : (accounts.find((a) => a.id === item.accountId)?.name ?? "No account (track only)")}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No account (track only)</SelectItem>
+            {accounts.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={item.category}
+          onValueChange={(v) => {
+            const category = v as string;
+            startTransition(async () => {
+              await setRecurringCategoryAction(item.id, category);
+              router.refresh();
+            });
+          }}
+        >
+          <SelectTrigger className="h-7 w-full text-xs">
+            <SelectValue>{item.category}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {TRANSACTION_CATEGORIES.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
