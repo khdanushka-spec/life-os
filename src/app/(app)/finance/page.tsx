@@ -76,7 +76,7 @@ export default async function FinancePage({
       getAudFxSnapshot(),
     ]);
 
-  const { netWorth } = computeNetWorth({
+  const { netWorth, cashOnHand, nonCashAssets, totalLiabilities } = computeNetWorth({
     accounts: accounts.map((a) => ({ type: a.type, balance: decToNumber(a.balance), currency: a.currency })),
     investments: investments.map((i) => ({ currentValue: decToNumber(i.currentValue), currency: i.currency })),
     assetsLiabilities: assetsLiabilities.map((a) => ({ kind: a.kind, value: decToNumber(a.value) })),
@@ -108,7 +108,14 @@ export default async function FinancePage({
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:p-6">
-      <FinanceHeader name={name} netWorth={netWorth} netWorthChange={netWorthChange} />
+      <FinanceHeader
+        name={name}
+        netWorth={netWorth}
+        netWorthChange={netWorthChange}
+        cashOnHand={cashOnHand}
+        assets={nonCashAssets}
+        loans={totalLiabilities}
+      />
 
       {lowBalanceAlerts.length > 0 && (
         <div className="flex flex-col gap-2">

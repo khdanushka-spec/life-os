@@ -1,14 +1,33 @@
+import { Wallet, Landmark, TrendingUp } from "lucide-react";
 import { greeting } from "@/lib/greeting";
 import { formatCurrency } from "@/lib/finance";
+
+function BreakdownStat({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <div>
+        <p className="text-sm font-semibold tabular-nums leading-tight">{formatCurrency(value)}</p>
+        <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>
+      </div>
+    </div>
+  );
+}
 
 export function FinanceHeader({
   name,
   netWorth,
   netWorthChange,
+  cashOnHand,
+  assets,
+  loans,
 }: {
   name: string;
   netWorth: number;
   netWorthChange: number | null;
+  cashOnHand: number;
+  assets: number;
+  loans: number;
 }) {
   return (
     <div className="relative overflow-hidden rounded-3xl border bg-card/60 p-6 backdrop-blur-xl">
@@ -35,6 +54,12 @@ export function FinanceHeader({
           )}
         </div>
         <p className="text-xs text-muted-foreground">Net worth</p>
+
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3 border-t pt-4">
+          <BreakdownStat icon={Wallet} label="Cash in hand" value={cashOnHand} />
+          <BreakdownStat icon={TrendingUp} label="Assets" value={assets} />
+          <BreakdownStat icon={Landmark} label="Loans" value={loans} />
+        </div>
       </div>
     </div>
   );

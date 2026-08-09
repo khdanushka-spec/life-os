@@ -91,9 +91,21 @@ export function computeNetWorth(input: {
   investments: { currentValue: number; currency?: string }[];
   assetsLiabilities: { kind: AssetLiabilityKind; value: number }[];
   fxRatesToAud?: Record<string, number> | null;
-}): { netWorth: number; totalAssets: number; totalLiabilities: number; unconvertedCount: number } {
+}): {
+  netWorth: number;
+  totalAssets: number;
+  totalLiabilities: number;
+  // Split out of totalAssets for the dashboard's separate Cash/Loans/Assets
+  // figures: cashOnHand is CHECKING+SAVINGS+CASH account balances only (the
+  // only non-liability AccountTypes), nonCashAssets is everything else that
+  // counts toward totalAssets (investments + manual ASSET entries).
+  cashOnHand: number;
+  nonCashAssets: number;
+  unconvertedCount: number;
+} {
   let totalAssets = 0;
   let totalLiabilities = 0;
+  let cashOnHand = 0;
   let unconvertedCount = 0;
 
   function toAud(amount: number, currency: string | undefined): number | null {
@@ -108,8 +120,12 @@ export function computeNetWorth(input: {
       unconvertedCount++;
       continue;
     }
-    if (LIABILITY_ACCOUNT_TYPES.includes(a.type)) totalLiabilities += converted;
-    else totalAssets += converted;
+    if (LIABILITY_ACCOUNT_TYPES.includes(a.type)) {
+      totalLiabilities += converted;
+    } else {
+      totalAssets += converted;
+      cashOnHand += converted;
+    }
   }
   for (const inv of input.investments) {
     const converted = toAud(inv.currentValue, inv.currency);
@@ -124,7 +140,14 @@ export function computeNetWorth(input: {
     else totalLiabilities += al.value;
   }
 
-  return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities, unconvertedCount };
+  return {
+    totalAssets,
+    totalLiabilities,
+    netWorth: totalAssets - totalLiabilities,
+    cashOnHand,
+    nonCashAssets: totalAssets - cashOnHand,
+    unconvertedCount,
+  };
 }
 
 export const LOW_BALANCE_THRESHOLD = 200;
