@@ -34,7 +34,12 @@ export function SpendingAnalytics({ data }: { data: CategorySpend[] }) {
   const top = sorted.slice(0, 7);
   const rest = sorted.slice(7);
   const otherTotal = rest.reduce((sum, r) => sum + r.amount, 0);
-  const rows = otherTotal > 0 ? [...top, { category: "Other", amount: otherTotal }] : top;
+  // "Other" here is the rank-8+ catch-all the fixed 7-color palette forces,
+  // not a real category - listing its members keeps it from silently
+  // swallowing named categories (Lottery, Fuel, etc.) once someone has
+  // more than 7 categories active in a month.
+  const rows: (CategorySpend & { members?: string[] })[] =
+    otherTotal > 0 ? [...top, { category: "Other", amount: otherTotal, members: rest.map((r) => r.category) }] : top;
   const total = rows.reduce((sum, r) => sum + r.amount, 0);
 
   return (
@@ -60,6 +65,7 @@ export function SpendingAnalytics({ data }: { data: CategorySpend[] }) {
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div className={cn("h-full rounded-full", dotClass)} style={{ width: `${pct}%` }} />
             </div>
+            {row.members && <p className="pl-4 text-[11px] text-muted-foreground/70">{row.members.join(", ")}</p>}
           </div>
         );
       })}
