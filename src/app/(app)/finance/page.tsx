@@ -124,7 +124,7 @@ export default async function FinancePage({
               <TriangleAlert />
               <AlertTitle>
                 {alert.alreadyLow
-                  ? `Low balance: ${alert.accountName} is below ${formatCurrency(LOW_BALANCE_THRESHOLD, alert.currency)}`
+                  ? `Urgent: ${alert.accountName} is below ${formatCurrency(LOW_BALANCE_THRESHOLD, alert.currency)}`
                   : `Urgent: ${alert.accountName} is projected to drop below ${formatCurrency(LOW_BALANCE_THRESHOLD, alert.currency)}`}
               </AlertTitle>
               <AlertDescription>
