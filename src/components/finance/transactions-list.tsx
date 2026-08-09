@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/finance";
 import { cn } from "@/lib/utils";
+import { TransactionEditDialog } from "./transaction-edit-dialog";
 
 // Money fields converted to plain numbers server-side - see AccountView
 // in accounts-list.tsx for why (Prisma Decimal doesn't survive the
@@ -46,6 +47,9 @@ function TransactionRow({ txn, accountName }: { txn: TransactionView; accountNam
         {isIncoming ? "+" : "-"}
         {formatCurrency(magnitude, txn.currency)}
       </p>
+      {/* Transfers stay delete-only - their amount is signed and paired across
+          two accounts, so editing here would desync the other leg. */}
+      {txn.type !== "TRANSFER" && <TransactionEditDialog txn={txn} />}
       <Button
         variant="ghost"
         size="icon-sm"

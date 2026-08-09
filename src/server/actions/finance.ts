@@ -176,6 +176,49 @@ export async function createTransactionAction(formData: FormData) {
   revalidateFinance("/finance/transactions");
 }
 
+const transactionEditSchema = z.object({
+  amount: z.coerce.number().positive(),
+  category: z.string().trim().min(1).max(60),
+  description: z.string().trim().max(280).optional(),
+  date: z.coerce.date(),
+});
+
+// Amount/date/category/description only - account and type stay fixed to
+// keep this a plain field edit rather than reopening the cross-account
+// balance-transfer logic createTransactionAction/deleteTransactionAction
+// already handle. TRANSFER rows are rejected outright: their amount is
+// signed and paired across two accounts (see schema comment on
+// transferAccountId), so an edit here would desync the other leg.
+export async function updateTransactionAction(transactionId: string, formData: FormData) {
+  const dbUser = await requireDbUser();
+  const txn = await prisma.transaction.findFirst({ where: { id: transactionId, userId: dbUser.id } });
+  if (!txn || txn.type === "TRANSFER") return;
+
+  const parsed = transactionEditSchema.safeParse({
+    amount: formData.get("amount"),
+    category: formData.get("category"),
+    description: formData.get("description") || undefined,
+    date: formData.get("date"),
+  });
+  if (!parsed.success) return;
+
+  const oldAmount = txn.amount.toNumber();
+  // Reverses the old amount's effect on the balance and applies the new
+  // one, in the same direction createTransactionAction/deleteTransactionAction
+  // already use for this account's type.
+  const balanceDelta = txn.type === "INCOME" ? parsed.data.amount - oldAmount : oldAmount - parsed.data.amount;
+
+  await prisma.$transaction([
+    prisma.transaction.update({ where: { id: transactionId }, data: parsed.data }),
+    prisma.financialAccount.update({
+      where: { id: txn.accountId },
+      data: { balance: { increment: balanceDelta } },
+    }),
+  ]);
+
+  revalidateFinance("/finance/transactions");
+}
+
 export async function deleteTransactionAction(transactionId: string) {
   const dbUser = await requireDbUser();
   const txn = await prisma.transaction.findFirst({
