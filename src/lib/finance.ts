@@ -182,7 +182,13 @@ export type LowBalanceAlert = {
   accountName: string;
   currency: string;
   currentBalance: number;
+  // The LOWEST point the balance is projected to reach within the window -
+  // not just where it ends up. A bill that lands before a later paycheck
+  // (e.g. rent debiting before salary arrives) can dip an account under
+  // the threshold mid-window even if it recovers by the end, and that dip
+  // is the real risk, not the final number.
   projectedBalance: number;
+  projectedBalanceDate: Date | null;
   // True when the account is under the threshold right now, as opposed to
   // only being projected to cross it because of an upcoming bill.
   alreadyLow: boolean;
@@ -217,25 +223,38 @@ export function computeLowBalanceAlerts(
 
     const linked = recurring.filter((r) => r.accountId === account.id && r.active);
     const upcoming: LowBalanceAlert["upcoming"] = [];
-    let delta = 0;
     for (const r of linked) {
       for (const date of occurrencesInRange(r.nextDueDate, r.interval, now, rangeEnd)) {
-        delta += r.type === "INCOME" ? r.amount : -r.amount;
         upcoming.push({ name: r.name, amount: r.amount, type: r.type, date });
       }
     }
+    upcoming.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    const projectedBalance = account.balance + delta;
-    if (!alreadyLow && (upcoming.length === 0 || projectedBalance >= LOW_BALANCE_THRESHOLD)) continue;
+    // Walk the occurrences in date order and track the running minimum,
+    // rather than just the net delta - see the LowBalanceAlert.projectedBalance
+    // comment for why the dip matters more than the ending number.
+    let running = account.balance;
+    let minBalance = account.balance;
+    let minBalanceDate: Date | null = null;
+    for (const u of upcoming) {
+      running += u.type === "INCOME" ? u.amount : -u.amount;
+      if (running < minBalance) {
+        minBalance = running;
+        minBalanceDate = u.date;
+      }
+    }
+
+    if (!alreadyLow && (upcoming.length === 0 || minBalance >= LOW_BALANCE_THRESHOLD)) continue;
 
     alerts.push({
       accountId: account.id,
       accountName: account.name,
       currency: account.currency,
       currentBalance: account.balance,
-      projectedBalance,
+      projectedBalance: minBalance,
+      projectedBalanceDate: minBalanceDate,
       alreadyLow,
-      upcoming: upcoming.sort((a, b) => a.date.getTime() - b.date.getTime()),
+      upcoming,
     });
   }
 

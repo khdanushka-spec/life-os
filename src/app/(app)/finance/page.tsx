@@ -20,7 +20,6 @@ import {
   findSnapshotDaysAgo,
   formatCurrency,
   LOW_BALANCE_THRESHOLD,
-  LOW_BALANCE_WINDOW_DAYS,
 } from "@/lib/finance";
 import { getAudFxSnapshot } from "@/lib/fx";
 import {
@@ -131,7 +130,10 @@ export default async function FinancePage({
                 Currently {formatCurrency(alert.currentBalance, alert.currency)}
                 {alert.upcoming.length > 0 && (
                   <>
-                    , projected to {formatCurrency(alert.projectedBalance, alert.currency)} within the next {LOW_BALANCE_WINDOW_DAYS} days from{" "}
+                    , projected to dip to {formatCurrency(alert.projectedBalance, alert.currency)}
+                    {alert.projectedBalanceDate &&
+                      ` around ${alert.projectedBalanceDate.toLocaleDateString("en-AU", { month: "short", day: "numeric" })}`}{" "}
+                    from{" "}
                     {alert.upcoming.map((u, i) => (
                       <span key={i}>
                         {i > 0 && ", "}
