@@ -64,6 +64,25 @@ export default async function ForeignAccountsPage() {
   }
   const netAud = assetsAud - liabilitiesAud;
 
+  // Raw (unconverted) totals per currency, alongside the AUD-converted
+  // figure above - e.g. "LKR 9,432,169" so the number matches what her bank
+  // statements actually show, not just the AUD-equivalent. Tracked two ways:
+  // gross (assets only, loans excluded) and net (assets minus loans).
+  const nativeGrossTotals: Record<string, number> = {};
+  const nativeNetTotals: Record<string, number> = {};
+  for (const a of accounts) {
+    if (LIABILITY_ACCOUNT_TYPES.includes(a.type)) {
+      nativeNetTotals[a.currency] = (nativeNetTotals[a.currency] ?? 0) - a.balance;
+    } else {
+      nativeGrossTotals[a.currency] = (nativeGrossTotals[a.currency] ?? 0) + a.balance;
+      nativeNetTotals[a.currency] = (nativeNetTotals[a.currency] ?? 0) + a.balance;
+    }
+  }
+  for (const inv of investments) {
+    nativeGrossTotals[inv.currency] = (nativeGrossTotals[inv.currency] ?? 0) + inv.currentValue;
+    nativeNetTotals[inv.currency] = (nativeNetTotals[inv.currency] ?? 0) + inv.currentValue;
+  }
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-4 md:p-6">
       <Link href="/finance" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
@@ -96,6 +115,23 @@ export default async function ForeignAccountsPage() {
               </div>
             )}
           </div>
+          {currenciesPresent.length > 0 && (
+            <div className="flex flex-wrap gap-6 border-t pt-3">
+              {currenciesPresent.map((code) => (
+                <div key={code} className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">{code} total</span>
+                  <span className="text-sm font-medium tabular-nums">
+                    {formatCurrency(nativeGrossTotals[code] ?? 0, code)}{" "}
+                    <span className="font-normal text-muted-foreground">without loan</span>
+                  </span>
+                  <span className="text-sm font-medium tabular-nums">
+                    {formatCurrency(nativeNetTotals[code] ?? 0, code)}{" "}
+                    <span className="font-normal text-muted-foreground">with loan</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {unconverted > 0 && (
             <Alert variant="destructive">
               <TriangleAlert />
