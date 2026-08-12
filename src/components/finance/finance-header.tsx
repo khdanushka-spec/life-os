@@ -1,10 +1,22 @@
+import Link from "next/link";
 import { Wallet, Landmark, TrendingUp } from "lucide-react";
 import { greeting } from "@/lib/greeting";
 import { formatCurrency } from "@/lib/finance";
+import { cn } from "@/lib/utils";
 
-function BreakdownStat({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-2">
+function BreakdownStat({
+  icon: Icon,
+  label,
+  value,
+  href,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  href?: string;
+}) {
+  const content = (
+    <div className={cn("flex items-center gap-2", href && "-m-1 rounded-lg p-1 transition-colors hover:bg-foreground/5")}>
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <div>
         <p className="text-sm font-semibold tabular-nums leading-tight">{formatCurrency(value)}</p>
@@ -12,6 +24,9 @@ function BreakdownStat({ icon: Icon, label, value }: { icon: React.ComponentType
       </div>
     </div>
   );
+
+  if (!href) return content;
+  return <Link href={href}>{content}</Link>;
 }
 
 export function FinanceHeader({
@@ -56,7 +71,7 @@ export function FinanceHeader({
         <p className="text-xs text-muted-foreground">Net worth</p>
 
         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3 border-t pt-4">
-          <BreakdownStat icon={Wallet} label="Cash in hand" value={cashOnHand} />
+          <BreakdownStat icon={Wallet} label="Cash in hand" value={cashOnHand} href="/finance/cash" />
           <BreakdownStat icon={TrendingUp} label="Assets" value={assets} />
           <BreakdownStat icon={Landmark} label="Loans" value={loans} />
         </div>
