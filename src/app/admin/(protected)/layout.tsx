@@ -20,7 +20,7 @@ export default async function AdminProtectedLayout({
         </span>
         <Badge variant="secondary">{admin.role}</Badge>
         <div className="flex-1" />
-        <span className="text-sm text-muted-foreground">{admin.username}</span>
+        <span className="text-sm text-muted-foreground">{admin.username ?? admin.email}</span>
         <form action={adminSignOutAction}>
           <Button type="submit" variant="ghost" size="icon" aria-label="Sign out">
             <LogOut className="size-4" />

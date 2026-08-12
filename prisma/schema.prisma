@@ -18,6 +18,18 @@ enum UserRole {
   USER
 }
 
+// Defaults to APPROVED so adding this column never locks out any existing
+// row (all of today's Supabase users, and every local admin account) - new
+// Supabase signups explicitly override this to PENDING at creation time in
+// resolveDbUserFromSession() instead. Local admin accounts (username set)
+// never go through that path and stay APPROVED regardless, since the
+// separate /admin/login flow doesn't consult this field.
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // Two auth paths land in the same table:
 // - Supabase-authenticated regular users: id is the Supabase auth UID,
 //   email is set, username/passwordHash are null.
@@ -26,15 +38,16 @@ enum UserRole {
 // Every future life-area model (tasks, habits, journal, finance, ...)
 // hangs off this via userId, regardless of which path a user came from.
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String?  @unique
-  username     String?  @unique
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String?    @unique
+  username     String?    @unique
   passwordHash String?
-  role         UserRole @default(USER)
+  role         UserRole   @default(USER)
+  status       UserStatus @default(APPROVED)
   name         String?
-  timezone     String   @default("UTC")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  timezone     String     @default("UTC")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   tasks                Task[]
   projects             Project[]

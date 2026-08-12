@@ -52,8 +52,11 @@ const resolveDbUserFromSession = cache(async (): Promise<User | null> => {
   if (byEmail) return byEmail;
 
   try {
+    // Overrides the schema's APPROVED default (which exists only to keep
+    // already-existing rows from being locked out) - every genuinely new
+    // Supabase signup requires an admin to approve it.
     return await prisma.user.create({
-      data: { id: user.id, email: user.email },
+      data: { id: user.id, email: user.email, status: "PENDING" },
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {

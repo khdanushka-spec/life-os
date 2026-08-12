@@ -17,7 +17,15 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-export function Topbar({ user, nickname }: { user: User | null; nickname: string | null }) {
+export function Topbar({
+  user,
+  nickname,
+  isAdmin = false,
+}: {
+  user: User | null;
+  nickname: string | null;
+  isAdmin?: boolean;
+}) {
   const [navOpen, setNavOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -38,7 +46,7 @@ export function Topbar({ user, nickname }: { user: User | null; nickname: string
             </SheetTitle>
             <SheetDescription>Your Life, Organized.</SheetDescription>
           </SheetHeader>
-          <SidebarNav onNavigate={() => setNavOpen(false)} />
+          <SidebarNav onNavigate={() => setNavOpen(false)} isAdmin={isAdmin} />
         </SheetContent>
       </Sheet>
 

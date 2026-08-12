@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { ShieldCheck } from "lucide-react";
 import { navItems, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +23,18 @@ function groupNavItems(items: NavItem[]) {
   ];
 }
 
-export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
+export function SidebarNav({
+  onNavigate,
+  collapsed = false,
+  isAdmin = false,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+  isAdmin?: boolean;
+}) {
   const pathname = usePathname();
   const groups = groupNavItems(navItems);
+  const adminActive = pathname === "/admin" || pathname.startsWith("/admin/");
 
   return (
     <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-3">
@@ -90,6 +100,34 @@ export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () 
           })}
         </div>
       ))}
+
+      {isAdmin && (
+        <div className="mt-auto flex flex-col gap-0.5 border-t border-sidebar-border pt-3">
+          <Link
+            href="/admin"
+            onClick={onNavigate}
+            title={collapsed ? "Admin" : undefined}
+            className={cn(
+              "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors duration-150",
+              collapsed && "justify-center px-0",
+              adminActive ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:text-sidebar-accent-foreground",
+            )}
+          >
+            {adminActive && (
+              <motion.span
+                layoutId="sidebar-active-pill"
+                transition={transitionFast}
+                className="absolute inset-0 rounded-lg bg-sidebar-accent shadow-[var(--shadow-glow-primary)]"
+              />
+            )}
+            {!adminActive && (
+              <span className="absolute inset-0 rounded-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-hover:bg-sidebar-accent/60" />
+            )}
+            <ShieldCheck className="relative size-4 shrink-0" />
+            {!collapsed && <span className="relative flex-1 truncate">Admin</span>}
+          </Link>
+        </div>
+      )}
     </nav>
   );
 }

@@ -16,6 +16,7 @@ export default async function AppLayout({
   const configured = isSupabaseConfigured();
   let user: User | null = null;
   let nickname: string | null = null;
+  let isAdmin = false;
 
   if (configured) {
     const supabase = await createClient();
@@ -25,14 +26,16 @@ export default async function AppLayout({
     if (!currentUser) redirect("/login");
     user = currentUser;
     const dbUser = await requireDbUser();
+    if (dbUser.status !== "APPROVED") redirect("/pending");
     nickname = dbUser.username;
+    isAdmin = dbUser.role !== "USER";
   }
 
   return (
     <div className="flex min-h-svh flex-1">
-      <DesktopSidebar />
+      <DesktopSidebar isAdmin={isAdmin} />
       <div className="flex flex-1 flex-col">
-        <Topbar user={user} nickname={nickname} />
+        <Topbar user={user} nickname={nickname} isAdmin={isAdmin} />
         <main className="flex-1 overflow-y-auto">
           {!configured && (
             <div className="p-4 pb-0">

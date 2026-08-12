@@ -28,7 +28,7 @@ function setCollapsedPreference(value: boolean) {
   listeners.forEach((listener) => listener());
 }
 
-export function DesktopSidebar() {
+export function DesktopSidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   // useSyncExternalStore, not useState+useEffect - localStorage is an
   // external store, and this is the React-sanctioned way to read it
   // without a hydration-mismatching client-only render pass.
@@ -53,7 +53,7 @@ export function DesktopSidebar() {
         )}
       </div>
 
-      <SidebarNav collapsed={collapsed} />
+      <SidebarNav collapsed={collapsed} isAdmin={isAdmin} />
 
       <div className="border-t border-sidebar-border p-2">
         <button
