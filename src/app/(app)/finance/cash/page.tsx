@@ -4,12 +4,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { AccountsList } from "@/components/finance/accounts-list";
+import { CurrencyFilterBar } from "@/components/finance/currency-filter-bar";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { decToNumber, formatCurrency, LIABILITY_ACCOUNT_TYPES } from "@/lib/finance";
 import { getAudFxSnapshot, convertToAud } from "@/lib/fx";
 
-export default async function CashInHandPage() {
+export default async function CashInHandPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ currency?: string }>;
+}) {
+  const { currency } = await searchParams;
   const dbUser = await requireDbUser();
 
   const [accountRows, fx] = await Promise.all([
@@ -23,21 +29,30 @@ export default async function CashInHandPage() {
     getAudFxSnapshot(),
   ]);
 
-  const accounts = accountRows.map((a) => ({
+  const allAccounts = accountRows.map((a) => ({
     ...a,
     balance: decToNumber(a.balance),
     creditLimit: a.creditLimit != null ? decToNumber(a.creditLimit) : null,
   }));
+  const currenciesPresent = Array.from(new Set(allAccounts.map((a) => a.currency))).sort();
+  const accounts = currency ? allAccounts.filter((a) => a.currency === currency) : allAccounts;
 
-  let totalAud = 0;
+  // With a single currency selected, show its own raw total (no FX
+  // rounding) instead of the AUD-converted figure - matches the
+  // with/without-loan native totals on Foreign Accounts.
+  let total = 0;
   let unconverted = 0;
-  for (const a of accounts) {
-    const converted = convertToAud(a.balance, a.currency, fx?.rates);
-    if (converted == null) {
-      unconverted++;
-      continue;
+  if (currency) {
+    total = accounts.reduce((sum, a) => sum + a.balance, 0);
+  } else {
+    for (const a of allAccounts) {
+      const converted = convertToAud(a.balance, a.currency, fx?.rates);
+      if (converted == null) {
+        unconverted++;
+        continue;
+      }
+      total += converted;
     }
-    totalAud += converted;
   }
 
   return (
@@ -58,10 +73,13 @@ export default async function CashInHandPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="text-2xl font-semibold tabular-nums">
-            {formatCurrency(totalAud)}
-            <span className="ml-1.5 text-sm font-normal text-muted-foreground">total, converted</span>
+            {formatCurrency(total, currency ?? "AUD")}
+            <span className="ml-1.5 text-sm font-normal text-muted-foreground">
+              {currency ? `total in ${currency}` : "total, converted"}
+            </span>
           </p>
-          {unconverted > 0 && (
+          <CurrencyFilterBar basePath="/finance/cash" currencies={currenciesPresent} active={currency} />
+          {!currency && unconverted > 0 && (
             <Alert variant="destructive">
               <TriangleAlert />
               <AlertDescription>

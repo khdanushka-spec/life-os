@@ -5,12 +5,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { AccountsList } from "@/components/finance/accounts-list";
 import { AssetLiabilityRow, type AssetLiabilityView } from "@/components/finance/investments-list";
+import { CurrencyFilterBar } from "@/components/finance/currency-filter-bar";
 import { prisma } from "@/lib/prisma";
 import { requireDbUser } from "@/server/db-user";
 import { decToNumber, formatCurrency, LIABILITY_ACCOUNT_TYPES } from "@/lib/finance";
 import { getAudFxSnapshot, convertToAud } from "@/lib/fx";
 
-export default async function LoansPage() {
+export default async function LoansPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ currency?: string }>;
+}) {
+  const { currency } = await searchParams;
   const dbUser = await requireDbUser();
 
   const [accountRows, assetLiabilityRows, fx] = await Promise.all([
@@ -28,25 +34,39 @@ export default async function LoansPage() {
     getAudFxSnapshot(),
   ]);
 
-  const accounts = accountRows.map((a) => ({
+  const allAccounts = accountRows.map((a) => ({
     ...a,
     balance: decToNumber(a.balance),
     creditLimit: a.creditLimit != null ? decToNumber(a.creditLimit) : null,
   }));
   const manualLiabilities: AssetLiabilityView[] = assetLiabilityRows.map((a) => ({ ...a, value: decToNumber(a.value) }));
+  // AUD is always "present" for the filter bar when there are manual
+  // liabilities, even if every loan account happens to be foreign-currency
+  // only - otherwise there'd be no way to isolate the AUD-only view.
+  const currenciesPresent = Array.from(
+    new Set([...allAccounts.map((a) => a.currency), ...(manualLiabilities.length > 0 ? ["AUD"] : [])]),
+  ).sort();
+  const accounts = currency ? allAccounts.filter((a) => a.currency === currency) : allAccounts;
+  const showManualLiabilities = !currency || currency === "AUD";
 
-  let totalAud = 0;
+  // With a single currency selected, show its own raw total (no FX
+  // rounding) instead of the AUD-converted figure - matches the
+  // with/without-loan native totals on Foreign Accounts.
+  let total = 0;
   let unconverted = 0;
-  for (const a of accounts) {
-    const converted = convertToAud(a.balance, a.currency, fx?.rates);
-    if (converted == null) {
-      unconverted++;
-      continue;
+  if (currency) {
+    total = accounts.reduce((sum, a) => sum + a.balance, 0);
+    if (currency === "AUD") total += manualLiabilities.reduce((sum, i) => sum + i.value, 0);
+  } else {
+    for (const a of allAccounts) {
+      const converted = convertToAud(a.balance, a.currency, fx?.rates);
+      if (converted == null) {
+        unconverted++;
+        continue;
+      }
+      total += converted;
     }
-    totalAud += converted;
-  }
-  for (const item of manualLiabilities) {
-    totalAud += item.value;
+    total += manualLiabilities.reduce((sum, i) => sum + i.value, 0);
   }
 
   return (
@@ -67,10 +87,13 @@ export default async function LoansPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="text-2xl font-semibold tabular-nums text-destructive">
-            {formatCurrency(totalAud)}
-            <span className="ml-1.5 text-sm font-normal text-muted-foreground">total owed, converted</span>
+            {formatCurrency(total, currency ?? "AUD")}
+            <span className="ml-1.5 text-sm font-normal text-muted-foreground">
+              {currency ? `total owed in ${currency}` : "total owed, converted"}
+            </span>
           </p>
-          {unconverted > 0 && (
+          <CurrencyFilterBar basePath="/finance/loans" currencies={currenciesPresent} active={currency} />
+          {!currency && unconverted > 0 && (
             <Alert variant="destructive">
               <TriangleAlert />
               <AlertDescription>
@@ -83,7 +106,7 @@ export default async function LoansPage() {
         </CardContent>
       </Card>
 
-      {manualLiabilities.length > 0 && (
+      {showManualLiabilities && manualLiabilities.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Other liabilities</CardTitle>
