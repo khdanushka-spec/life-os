@@ -1,11 +1,17 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Ban, CircleCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { resetToPendingAction, setUserRoleAction } from "@/server/actions/admin-users";
+import {
+  resetToPendingAction,
+  setUserRoleAction,
+  disableUserAction,
+  enableUserAction,
+  deleteUserAction,
+} from "@/server/actions/admin-users";
 import type { UserRole, UserStatus } from "@/generated/prisma/client";
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -14,22 +20,23 @@ const ROLE_LABELS: Record<UserRole, string> = {
   USER: "User",
 };
 
-// canChangeRole is false for the viewer's own row (server-enforced too in
-// setUserRoleAction, but hiding the control avoids a confusing no-op click)
-// and for anyone viewing without SUPER_ADMIN - only Super Admins grant
-// admin access.
+// canManage is false for the viewer's own row (server-enforced too in every
+// action below, but hiding the controls avoids a confusing no-op click) and
+// for anyone viewing without SUPER_ADMIN - only Super Admins can change
+// role, disable/enable, or delete another member.
 export function MemberActions({
   userId,
   role,
   status,
-  canChangeRole,
+  canManage,
 }: {
   userId: string;
   role: UserRole;
   status: UserStatus;
-  canChangeRole: boolean;
+  canManage: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const router = useRouter();
 
   return (
@@ -49,7 +56,57 @@ export function MemberActions({
           <RotateCcw className="size-3.5" /> Reconsider
         </Button>
       )}
-      {canChangeRole ? (
+      {canManage && status === "APPROVED" && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              await disableUserAction(userId);
+              router.refresh();
+            })
+          }
+        >
+          <Ban className="size-3.5" /> Disable
+        </Button>
+      )}
+      {canManage && status === "DISABLED" && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              await enableUserAction(userId);
+              router.refresh();
+            })
+          }
+        >
+          <CircleCheck className="size-3.5" /> Enable
+        </Button>
+      )}
+      {canManage && (
+        <Button
+          size="sm"
+          variant={confirmingDelete ? "destructive" : "outline"}
+          disabled={isPending}
+          onBlur={() => setConfirmingDelete(false)}
+          onClick={() => {
+            if (!confirmingDelete) {
+              setConfirmingDelete(true);
+              return;
+            }
+            startTransition(async () => {
+              await deleteUserAction(userId);
+              router.refresh();
+            });
+          }}
+        >
+          <Trash2 className="size-3.5" /> {confirmingDelete ? "Confirm delete?" : "Delete"}
+        </Button>
+      )}
+      {canManage ? (
         <Select
           value={role}
           onValueChange={(v) =>

@@ -10,6 +10,7 @@ const STATUS_BADGE_VARIANT = {
   PENDING: "secondary",
   APPROVED: "outline",
   REJECTED: "destructive",
+  DISABLED: "destructive",
 } as const;
 
 export default async function AdminDashboardPage() {
@@ -78,7 +79,7 @@ export default async function AdminDashboardPage() {
                   userId={u.id}
                   role={u.role}
                   status={u.status}
-                  canChangeRole={admin.role === "SUPER_ADMIN" && u.id !== admin.id}
+                  canManage={admin.role === "SUPER_ADMIN" && u.id !== admin.id}
                 />
               </div>
             </div>

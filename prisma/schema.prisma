@@ -28,6 +28,7 @@ enum UserStatus {
   PENDING
   APPROVED
   REJECTED
+  DISABLED
 }
 
 // Two auth paths land in the same table:
