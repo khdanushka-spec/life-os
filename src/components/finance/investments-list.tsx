@@ -78,7 +78,7 @@ export function InvestmentRow({ investment }: { investment: InvestmentView }) {
   );
 }
 
-function AssetLiabilityRow({ item }: { item: AssetLiabilityView }) {
+export function AssetLiabilityRow({ item }: { item: AssetLiabilityView }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 

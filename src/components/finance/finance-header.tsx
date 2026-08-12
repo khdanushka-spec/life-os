@@ -73,7 +73,7 @@ export function FinanceHeader({
         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3 border-t pt-4">
           <BreakdownStat icon={Wallet} label="Cash in hand" value={cashOnHand} href="/finance/cash" />
           <BreakdownStat icon={TrendingUp} label="Assets" value={assets} />
-          <BreakdownStat icon={Landmark} label="Loans" value={loans} />
+          <BreakdownStat icon={Landmark} label="Loans" value={loans} href="/finance/loans" />
         </div>
       </div>
     </div>
