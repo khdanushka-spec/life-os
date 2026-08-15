@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Upload } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
 import { TransactionForm } from "@/components/finance/transaction-form";
 import { TransactionsList } from "@/components/finance/transactions-list";
 import { TransactionsFilterBar } from "@/components/finance/transactions-filter-bar";
@@ -79,7 +80,12 @@ export default async function TransactionsPage({
               <CardTitle>Transactions</CardTitle>
               <CardDescription>Income and expenses across all accounts.</CardDescription>
             </div>
-            <TransactionForm accounts={accounts} />
+            <div className="flex items-center gap-2">
+              <Link href="/finance/transactions/import" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                <Upload className="size-4" /> Import Statement
+              </Link>
+              <TransactionForm accounts={accounts} />
+            </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <TransactionsFilterBar

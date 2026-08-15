@@ -11,6 +11,7 @@ import {
   RecurringInterval,
   InvestmentType,
   AssetLiabilityKind,
+  type Prisma,
   type ReportPeriod,
 } from "@/generated/prisma/client";
 import {
@@ -19,6 +20,7 @@ import {
   getOrGenerateHealthScoreNarrative,
   generateFinancialReport,
 } from "@/lib/ai/finance";
+import { parseStatementCsv, flagDuplicates, matchTransferAccounts } from "@/lib/statement-import";
 
 function revalidateFinance(subpath?: string) {
   revalidatePath("/finance");
@@ -275,6 +277,155 @@ export async function deleteTransactionAction(transactionId: string) {
   ]);
 
   revalidateFinance("/finance/transactions");
+}
+
+// ---------- Bank statement import ----------
+
+export type StatementImportCandidate = {
+  date: string; // ISO - Dates don't round-trip through client state as cleanly as through the RSC boundary
+  description: string;
+  amount: number;
+  isDuplicate: boolean;
+  matchedAccountId: string | null;
+};
+
+export async function parseStatementAction(formData: FormData): Promise<
+  | {
+      ok: true;
+      candidates: StatementImportCandidate[];
+      // Same-currency accounts the review screen can link a row to as a
+      // transfer, whether or not the auto-match found one.
+      linkableAccounts: { id: string; name: string }[];
+    }
+  | { ok: false; error: string }
+> {
+  const dbUser = await requireDbUser();
+  const accountId = formData.get("accountId");
+  const file = formData.get("file");
+  if (typeof accountId !== "string" || !accountId) return { ok: false, error: "Choose an account first." };
+  if (!(file instanceof File)) return { ok: false, error: "Choose a CSV file." };
+
+  const account = await prisma.financialAccount.findFirst({ where: { id: accountId, userId: dbUser.id } });
+  if (!account) return { ok: false, error: "Account not found." };
+
+  const text = await file.text();
+  const { candidates, error } = parseStatementCsv(text);
+  if (error) return { ok: false, error };
+
+  const [duplicateFlags, matches, linkableAccounts] = await Promise.all([
+    flagDuplicates(dbUser.id, accountId, candidates),
+    matchTransferAccounts(dbUser.id, accountId, account.currency, candidates),
+    prisma.financialAccount.findMany({
+      where: { userId: dbUser.id, id: { not: accountId }, archived: false, currency: account.currency },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  return {
+    ok: true,
+    candidates: candidates.map((c, i) => ({
+      date: c.date.toISOString(),
+      description: c.description,
+      amount: c.amount,
+      isDuplicate: duplicateFlags[i],
+      matchedAccountId: matches[i]?.id ?? null,
+    })),
+    linkableAccounts,
+  };
+}
+
+export async function importStatementTransactionsAction(
+  accountId: string,
+  rows: { date: string; description: string; amount: number; linkAccountId?: string | null }[],
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const dbUser = await requireDbUser();
+  if (rows.length === 0) return { ok: false, error: "Nothing selected." };
+
+  const account = await prisma.financialAccount.findFirst({ where: { id: accountId, userId: dbUser.id } });
+  if (!account) return { ok: false, error: "Account not found." };
+
+  // Rows linked to another account become a real paired TRANSFER (both
+  // legs, both balances) instead of a one-sided EXPENSE/INCOME - same
+  // shape createTransactionAction already uses. Verify every linked
+  // account up front so one bad id doesn't fail partway through the batch.
+  const linkedIds = [...new Set(rows.map((r) => r.linkAccountId).filter((id): id is string => Boolean(id)))];
+  const linkedAccounts =
+    linkedIds.length > 0
+      ? await prisma.financialAccount.findMany({
+          where: { id: { in: linkedIds }, userId: dbUser.id, currency: account.currency },
+        })
+      : [];
+  const linkedById = new Map(linkedAccounts.map((a) => [a.id, a]));
+
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
+  let ownBalanceDelta = 0;
+  const otherBalanceDeltas = new Map<string, number>();
+
+  for (const r of rows) {
+    const linked = r.linkAccountId ? linkedById.get(r.linkAccountId) : undefined;
+    const description = r.description.trim().slice(0, 280) || undefined;
+    const date = new Date(r.date);
+
+    if (linked) {
+      ownBalanceDelta += r.amount;
+      otherBalanceDeltas.set(linked.id, (otherBalanceDeltas.get(linked.id) ?? 0) - r.amount);
+      ops.push(
+        prisma.transaction.create({
+          data: {
+            userId: dbUser.id,
+            accountId,
+            type: "TRANSFER",
+            amount: r.amount,
+            currency: account.currency,
+            transferAccountId: linked.id,
+            category: "Transfer",
+            description,
+            date,
+          },
+        }),
+        prisma.transaction.create({
+          data: {
+            userId: dbUser.id,
+            accountId: linked.id,
+            type: "TRANSFER",
+            amount: -r.amount,
+            currency: linked.currency,
+            transferAccountId: accountId,
+            category: "Transfer",
+            description,
+            date,
+          },
+        }),
+      );
+    } else {
+      ownBalanceDelta += r.amount;
+      ops.push(
+        prisma.transaction.create({
+          data: {
+            userId: dbUser.id,
+            accountId,
+            type: r.amount > 0 ? "INCOME" : "EXPENSE",
+            amount: Math.abs(r.amount),
+            currency: account.currency,
+            category: "Other",
+            description,
+            date,
+          },
+        }),
+      );
+    }
+  }
+
+  ops.push(prisma.financialAccount.update({ where: { id: accountId }, data: { balance: { increment: ownBalanceDelta } } }));
+  for (const [id, delta] of otherBalanceDeltas) {
+    ops.push(prisma.financialAccount.update({ where: { id }, data: { balance: { increment: delta } } }));
+  }
+
+  await prisma.$transaction(ops);
+
+  revalidateFinance("/finance/transactions");
+  return { ok: true, count: rows.length };
 }
 
 // ---------- Recurring payments (bills/subscriptions) ----------
