@@ -25,7 +25,7 @@ function ymd(date: Date): string {
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; from?: string; to?: string; month?: string }>;
+  searchParams: Promise<{ date?: string; from?: string; to?: string; month?: string; accountId?: string }>;
 }) {
   const params = await searchParams;
   const dbUser = await requireDbUser();
@@ -39,7 +39,8 @@ export default async function TransactionsPage({
       ...(params.to ? { lt: new Date(new Date(`${params.to}T00:00:00`).getTime() + 86_400_000) } : {}),
     };
   }
-  const hasFilters = Boolean(params.date || params.from || params.to);
+  if (params.accountId) where.accountId = params.accountId;
+  const hasFilters = Boolean(params.date || params.from || params.to || params.accountId);
 
   const [accountRows, transactionRows] = await Promise.all([
     prisma.financialAccount.findMany({ where: { userId: dbUser.id, archived: false }, orderBy: { createdAt: "asc" } }),
@@ -81,7 +82,13 @@ export default async function TransactionsPage({
             <TransactionForm accounts={accounts} />
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <TransactionsFilterBar todayKey={todayKey} weekStartKey={weekStartKey} monthStartKey={monthStartKey} params={params} />
+            <TransactionsFilterBar
+              todayKey={todayKey}
+              weekStartKey={weekStartKey}
+              monthStartKey={monthStartKey}
+              params={params}
+              accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
+            />
             <TransactionsList
               transactions={transactions}
               accountNames={accountNames}
