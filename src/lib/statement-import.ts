@@ -1,11 +1,16 @@
 import "server-only";
 import Papa from "papaparse";
+import { PDFParse } from "pdf-parse";
 import { prisma } from "@/lib/prisma";
 
 export type StatementCandidate = {
   date: Date;
   description: string;
   amount: number; // signed: positive = income/credit, negative = expense/debit
+  // Set only by PDF parsing, where the sign has to be inferred (see
+  // parseStatementPdf) rather than read off an explicit debit/credit
+  // column - true means "double-check this one before importing."
+  uncertainSign?: boolean;
 };
 
 // Bank CSV exports vary a lot by institution - this matches on common
@@ -138,6 +143,122 @@ export function parseStatementCsv(text: string): { candidates: StatementCandidat
   if (candidates.length === 0) {
     return { candidates: [], error: "Found the right columns, but no valid transaction rows in them." };
   }
+  return { candidates };
+}
+
+const PDF_DATE_START =
+  /^(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})/i;
+const MONEY_TOKEN = /\(?-?\$?\d[\d,]*\.\d{2}\)?/g;
+
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
+};
+
+// A "DD Mon YYYY" match isn't handled by parseDate() (that's for
+// CSV-style numeric dates) - PDF statements commonly print dates this way.
+function parsePdfDate(raw: string): Date | null {
+  const numeric = parseDate(raw);
+  if (numeric) return numeric;
+  const m = raw.match(/^(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{2,4})/);
+  if (!m) return null;
+  const [, d, monStr, yRaw] = m;
+  const month = MONTH_INDEX[monStr.toLowerCase()];
+  if (month == null) return null;
+  const year = yRaw.length === 2 ? 2000 + Number(yRaw) : Number(yRaw);
+  const date = new Date(Date.UTC(year, month, Number(d)));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// PDF bank statements are formatted for human reading, not structured
+// data, so this is inherently best-effort - it extracts raw text (pdf-parse
+// / pdf.js under the hood) and looks for lines shaped like
+// "<date> <description> <amount> <running balance>". The balance column,
+// when present, is what makes the sign detection reliable: the delta
+// between consecutive rows' balances tells you whether that row was money
+// in or out far more robustly than guessing from the text alone. Rows
+// where that signal isn't available get amount.uncertainSign = true and
+// the review screen defaults them unchecked - never silently guessed into
+// an import.
+export async function parseStatementPdf(buffer: Buffer): Promise<{ candidates: StatementCandidate[]; error?: string }> {
+  let text: string;
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    text = result.text;
+  } catch {
+    return { candidates: [], error: "Couldn't read this PDF - make sure it's a text-based statement, not a scanned image." };
+  } finally {
+    await parser.destroy();
+  }
+
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const rawRows: { date: Date; description: string; numbers: number[] }[] = [];
+  for (const line of lines) {
+    const dateMatch = line.match(PDF_DATE_START);
+    if (!dateMatch) continue;
+    const date = parsePdfDate(dateMatch[0]);
+    if (!date) continue;
+
+    const numberTokens = line.slice(dateMatch[0].length).match(MONEY_TOKEN);
+    if (!numberTokens || numberTokens.length === 0) continue;
+    const numbers = numberTokens.map((t) => parseAmount(t)).filter((n): n is number => n != null);
+    if (numbers.length === 0) continue;
+
+    let description = line.slice(dateMatch[0].length);
+    for (const token of numberTokens) description = description.replace(token, "");
+    description = description.replace(/\s{2,}/g, " ").trim() || "Imported transaction";
+
+    rawRows.push({ date, description, numbers });
+  }
+
+  if (rawRows.length === 0) {
+    return {
+      candidates: [],
+      error: "Couldn't find any transaction-looking lines in this PDF. A CSV export from your bank, if available, will be far more reliable.",
+    };
+  }
+
+  // Last number on the line = running balance (near-universal statement
+  // convention); the number before it = the transaction amount.
+  const candidates: StatementCandidate[] = [];
+  let prevBalance: number | null = null;
+  for (const row of rawRows) {
+    const hasBalance = row.numbers.length >= 2;
+    const balance = hasBalance ? row.numbers[row.numbers.length - 1] : null;
+    const magnitude = Math.abs(hasBalance ? row.numbers[row.numbers.length - 2] : row.numbers[0]);
+
+    let amount: number;
+    let uncertainSign = true;
+    if (balance != null && prevBalance != null) {
+      const delta = balance - prevBalance;
+      amount = delta >= 0 ? magnitude : -magnitude;
+      // Balance delta should roughly match the extracted amount - if it
+      // doesn't, something in this row (or the one before it) parsed
+      // wrong, so flag it rather than trust either number.
+      uncertainSign = Math.abs(Math.abs(delta) - magnitude) > 0.02;
+    } else {
+      amount = -magnitude; // best guess only - most statement lines are debits
+    }
+
+    candidates.push({ date: row.date, description: row.description, amount, uncertainSign });
+    if (balance != null) prevBalance = balance;
+  }
+
   return { candidates };
 }
 

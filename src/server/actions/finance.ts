@@ -20,7 +20,7 @@ import {
   getOrGenerateHealthScoreNarrative,
   generateFinancialReport,
 } from "@/lib/ai/finance";
-import { parseStatementCsv, flagDuplicates, matchTransferAccounts } from "@/lib/statement-import";
+import { parseStatementCsv, parseStatementPdf, flagDuplicates, matchTransferAccounts } from "@/lib/statement-import";
 
 function revalidateFinance(subpath?: string) {
   revalidatePath("/finance");
@@ -287,6 +287,7 @@ export type StatementImportCandidate = {
   amount: number;
   isDuplicate: boolean;
   matchedAccountId: string | null;
+  uncertainSign: boolean;
 };
 
 export async function parseStatementAction(formData: FormData): Promise<
@@ -303,13 +304,15 @@ export async function parseStatementAction(formData: FormData): Promise<
   const accountId = formData.get("accountId");
   const file = formData.get("file");
   if (typeof accountId !== "string" || !accountId) return { ok: false, error: "Choose an account first." };
-  if (!(file instanceof File)) return { ok: false, error: "Choose a CSV file." };
+  if (!(file instanceof File)) return { ok: false, error: "Choose a CSV or PDF file." };
 
   const account = await prisma.financialAccount.findFirst({ where: { id: accountId, userId: dbUser.id } });
   if (!account) return { ok: false, error: "Account not found." };
 
-  const text = await file.text();
-  const { candidates, error } = parseStatementCsv(text);
+  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  const { candidates, error } = isPdf
+    ? await parseStatementPdf(Buffer.from(await file.arrayBuffer()))
+    : parseStatementCsv(await file.text());
   if (error) return { ok: false, error };
 
   const [duplicateFlags, matches, linkableAccounts] = await Promise.all([
@@ -330,6 +333,7 @@ export async function parseStatementAction(formData: FormData): Promise<
       amount: c.amount,
       isDuplicate: duplicateFlags[i],
       matchedAccountId: matches[i]?.id ?? null,
+      uncertainSign: c.uncertainSign ?? false,
     })),
     linkableAccounts,
   };

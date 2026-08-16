@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, ArrowUpDown } from "lucide-react";
 import {
   parseStatementAction,
   importStatementTransactionsAction,
@@ -54,7 +54,10 @@ export function ImportStatementClient({ accounts }: { accounts: AccountOption[] 
       setLinkableAccounts(result.linkableAccounts);
       const nextRows = result.candidates.map((c) => ({ ...c, linkAccountId: c.matchedAccountId }));
       setRows(nextRows);
-      setSelected(new Set(nextRows.map((_, i) => i).filter((i) => !nextRows[i].isDuplicate)));
+      // Duplicates and rows whose income/expense direction is only a guess
+      // (PDF parsing without a reliable balance-delta signal) start
+      // unchecked - both need a look before they're worth trusting.
+      setSelected(new Set(nextRows.map((_, i) => i).filter((i) => !nextRows[i].isDuplicate && !nextRows[i].uncertainSign)));
     });
   }
 
@@ -69,6 +72,10 @@ export function ImportStatementClient({ accounts }: { accounts: AccountOption[] 
 
   function setRowLink(i: number, linkAccountId: string | null) {
     setRows((prev) => (prev ? prev.map((r, idx) => (idx === i ? { ...r, linkAccountId } : r)) : prev));
+  }
+
+  function flipSign(i: number) {
+    setRows((prev) => (prev ? prev.map((r, idx) => (idx === i ? { ...r, amount: -r.amount } : r)) : prev));
   }
 
   function handleConfirm() {
@@ -122,8 +129,14 @@ export function ImportStatementClient({ accounts }: { accounts: AccountOption[] 
           )}
         >
           <Upload className="size-4" />
-          {isPending ? "Reading…" : "Choose CSV file"}
-          <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} disabled={!accountId || isPending} />
+          {isPending ? "Reading…" : "Choose CSV or PDF file"}
+          <input
+            type="file"
+            accept=".csv,text/csv,.pdf,application/pdf"
+            className="hidden"
+            onChange={handleFile}
+            disabled={!accountId || isPending}
+          />
         </Label>
       </div>
 
@@ -145,6 +158,7 @@ export function ImportStatementClient({ accounts }: { accounts: AccountOption[] 
             <p className="text-sm text-muted-foreground">
               {rows.length} rows found · {selected.size} selected · {rows.filter((r) => r.isDuplicate).length} look already
               recorded
+              {rows.some((r) => r.uncertainSign) && ` · ${rows.filter((r) => r.uncertainSign).length} need a direction check`}
             </p>
             <Button size="sm" disabled={selected.size === 0 || isPending} onClick={handleConfirm}>
               {isPending ? "Adding…" : `Add ${selected.size} transaction${selected.size === 1 ? "" : "s"}`}
@@ -170,8 +184,18 @@ export function ImportStatementClient({ accounts }: { accounts: AccountOption[] 
                         Already recorded
                       </Badge>
                     )}
+                    {r.uncertainSign && (
+                      <Badge variant="destructive" className="ml-1.5 text-[10px]">
+                        Check direction
+                      </Badge>
+                    )}
                   </p>
                 </div>
+                {r.uncertainSign && (
+                  <Button variant="ghost" size="icon-sm" aria-label="Flip income/expense" onClick={() => flipSign(i)}>
+                    <ArrowUpDown className="size-3.5" />
+                  </Button>
+                )}
                 {linkableAccounts.length > 0 && (
                   <Select value={r.linkAccountId ?? "none"} onValueChange={(v) => setRowLink(i, v === "none" ? null : (v as string))}>
                     <SelectTrigger className="h-7 w-44 text-xs">
