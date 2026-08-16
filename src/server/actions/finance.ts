@@ -310,10 +310,29 @@ export async function parseStatementAction(formData: FormData): Promise<
   if (!account) return { ok: false, error: "Account not found." };
 
   const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  const { candidates, error } = isPdf
+  const { candidates: parsed, error } = isPdf
     ? await parseStatementPdf(Buffer.from(await file.arrayBuffer()))
     : parseStatementCsv(await file.text());
   if (error) return { ok: false, error };
+
+  // Optional - lets a multi-month statement be narrowed to just the range
+  // she wants extracted, instead of always pulling every row in the file.
+  // Dates already parse as UTC midnight (see statement-import.ts), matching
+  // how these "YYYY-MM-DD" form values are interpreted here.
+  const fromRaw = formData.get("from");
+  const toRaw = formData.get("to");
+  let candidates = parsed;
+  if (typeof fromRaw === "string" && fromRaw) {
+    const from = new Date(`${fromRaw}T00:00:00Z`);
+    candidates = candidates.filter((c) => c.date >= from);
+  }
+  if (typeof toRaw === "string" && toRaw) {
+    const to = new Date(new Date(`${toRaw}T00:00:00Z`).getTime() + 86_400_000);
+    candidates = candidates.filter((c) => c.date < to);
+  }
+  if (candidates.length === 0) {
+    return { ok: false, error: "No transactions found in that date range - try widening it or leaving it blank." };
+  }
 
   const [duplicateFlags, matches, linkableAccounts] = await Promise.all([
     flagDuplicates(dbUser.id, accountId, candidates),

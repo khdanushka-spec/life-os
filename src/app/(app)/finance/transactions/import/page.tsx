@@ -25,10 +25,10 @@ export default async function ImportStatementPage() {
         <CardHeader>
           <CardTitle>Import bank statement</CardTitle>
           <CardDescription>
-            Upload a CSV or PDF statement from your bank. It checks what&apos;s already recorded, flags bank-to-bank
-            transfers and loan payments against your other accounts, and only adds what you confirm. CSV is far more
-            reliable — PDF text extraction is best-effort and flags anything it&apos;s not confident about for you to
-            check.
+            Upload a CSV or PDF statement from your bank, optionally narrowed to a date range if the file covers more
+            than you want extracted. It checks what&apos;s already recorded, flags bank-to-bank transfers and loan
+            payments against your other accounts, and only adds what you confirm. CSV is far more reliable — PDF
+            text extraction is best-effort and flags anything it&apos;s not confident about for you to check.
           </CardDescription>
         </CardHeader>
         <CardContent>

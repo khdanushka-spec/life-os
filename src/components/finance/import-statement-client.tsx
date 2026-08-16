@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/finance";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,8 @@ type Row = StatementImportCandidate & { linkAccountId: string | null };
 
 export function ImportStatementClient({ accounts }: { accounts: AccountOption[] }) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [linkableAccounts, setLinkableAccounts] = useState<{ id: string; name: string }[]>([]);
@@ -44,6 +47,8 @@ export function ImportStatementClient({ accounts }: { accounts: AccountOption[] 
     const formData = new FormData();
     formData.set("accountId", accountId);
     formData.set("file", file);
+    if (fromDate) formData.set("from", fromDate);
+    if (toDate) formData.set("to", toDate);
 
     startTransition(async () => {
       const result = await parseStatementAction(formData);
@@ -121,6 +126,15 @@ export function ImportStatementClient({ accounts }: { accounts: AccountOption[] 
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label>Only extract this date range (optional)</Label>
+          <div className="flex items-center gap-1.5">
+            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 w-40" />
+            <span className="text-sm text-muted-foreground">to</span>
+            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9 w-40" />
+          </div>
+          <p className="text-[11px] text-muted-foreground">Leave blank to extract everything. Set this before choosing the file.</p>
         </div>
         <Label
           className={cn(
