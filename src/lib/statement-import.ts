@@ -1,7 +1,37 @@
 import "server-only";
 import Papa from "papaparse";
-import { PDFParse } from "pdf-parse";
+// Type-only import - erased entirely at compile time, so it doesn't
+// trigger pdf-parse's (and pdfjs-dist's) runtime module evaluation. The
+// real, value-level import is dynamic, inside parseStatementPdf - see the
+// Canvas-polyfill comment below for why.
+import type { PDFParse } from "pdf-parse";
 import { prisma } from "@/lib/prisma";
+
+// pdfjs-dist (which pdf-parse wraps) references browser Canvas APIs at
+// module-evaluation time even though this app only ever uses it for text
+// extraction, never rendering - without these, Vercel's Node serverless
+// runtime throws "ReferenceError: DOMMatrix is not defined" and takes
+// down the entire module (confirmed in production, on every statement
+// upload, CSV included - a *static* `import { PDFParse } from "pdf-parse"`
+// here would get hoisted and evaluated as soon as this file loads,
+// regardless of whether parseStatementPdf is ever called). These are
+// intentionally minimal no-op stand-ins: nothing in this app's usage
+// actually renders through them, they just need to exist so pdfjs-dist's
+// optional-canvas-polyfill code path doesn't throw. pdf-parse itself is
+// imported dynamically inside parseStatementPdf, after these run, since
+// static imports would be hoisted above this and crash before it helps.
+if (typeof globalThis.DOMMatrix === "undefined") {
+  // @ts-expect-error - deliberately minimal, not a real DOMMatrix
+  globalThis.DOMMatrix = class DOMMatrix {};
+}
+if (typeof globalThis.ImageData === "undefined") {
+  // @ts-expect-error - deliberately minimal, not a real ImageData
+  globalThis.ImageData = class ImageData {};
+}
+if (typeof globalThis.Path2D === "undefined") {
+  // @ts-expect-error - deliberately minimal, not a real Path2D
+  globalThis.Path2D = class Path2D {};
+}
 
 export type StatementCandidate = {
   date: Date;
@@ -192,14 +222,16 @@ function parsePdfDate(raw: string): Date | null {
 // an import.
 export async function parseStatementPdf(buffer: Buffer): Promise<{ candidates: StatementCandidate[]; error?: string }> {
   let text: string;
-  const parser = new PDFParse({ data: buffer });
+  let parser: PDFParse | undefined;
   try {
+    const { PDFParse } = await import("pdf-parse");
+    parser = new PDFParse({ data: buffer });
     const result = await parser.getText();
     text = result.text;
   } catch {
     return { candidates: [], error: "Couldn't read this PDF - make sure it's a text-based statement, not a scanned image." };
   } finally {
-    await parser.destroy();
+    await parser?.destroy();
   }
 
   const lines = text
