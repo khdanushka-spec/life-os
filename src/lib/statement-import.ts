@@ -228,7 +228,8 @@ export async function parseStatementPdf(buffer: Buffer): Promise<{ candidates: S
     parser = new PDFParse({ data: buffer });
     const result = await parser.getText();
     text = result.text;
-  } catch {
+  } catch (err) {
+    console.error("PDF statement parse failed:", err);
     return { candidates: [], error: "Couldn't read this PDF - make sure it's a text-based statement, not a scanned image." };
   } finally {
     await parser?.destroy();
